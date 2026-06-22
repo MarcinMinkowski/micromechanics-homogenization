@@ -31,4 +31,4 @@ class EshelbyDataset(Dataset):
         return len(self.mesh.points)
 
     def __getitem__(self, index):
-        return torch.tensor(self.mesh.points[index],dtype=torch.float32,requires_grad=True), torch.cat([self.u_1[index],self.u_2[index],self.u_3[index],self.u_4[index],self.u_5[index],self.u_6[index]]), torch.tensor(self.lambda_inclusion), torch.tensor(self.mu_inclusion), torch.tensor(self.lambda_matrix), torch.tensor(self.mu_matrix), torch.tensor(self.is_inclusion_pt[index])
+        return torch.tensor(self.mesh.points[index],dtype=torch.float32), torch.cat([self.u_1[index],self.u_2[index],self.u_3[index],self.u_4[index],self.u_5[index],self.u_6[index]]), torch.tensor(self.lambda_inclusion), torch.tensor(self.mu_inclusion), torch.tensor(self.lambda_matrix), torch.tensor(self.mu_matrix), torch.tensor(self.is_inclusion_pt[index])

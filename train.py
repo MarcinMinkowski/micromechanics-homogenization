@@ -8,16 +8,25 @@ import csv
 from model import Net
 import training
 
-data = EshelbyDataset()
+if __name__ == "__main__":
 
-dataloader = DataLoader(dataset=data, shuffle=True, batch_size=1)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-model = Net()
+    print(device)
 
-loss_fn = nn.MSELoss()
+    data = EshelbyDataset()
 
-optimizer = torch.optim.Adam(model.parameters(),lr=1e-3)
+    dataloader = DataLoader(dataset=data, shuffle=True, batch_size=100, num_workers=7)
 
-for epoch in range(10):
-    loss_epoch, loss_pinn = training.train_loop(model, dataloader, loss_fn, optimizer)
-    print(f"Epoch {epoch+1}: data loss: {loss_epoch}, PINN loss: {loss_pinn}")
+    model = Net()
+    model.to(device)
+
+    loss_fn = nn.MSELoss()
+
+    optimizer = torch.optim.Adam(model.parameters(),lr=1e-3)
+
+    for epoch in range(10):
+        #loss_epoch, loss_pinn = training.train_loop(model, dataloader, loss_fn, optimizer, device)
+        loss_epoch = training.train_loop(model, dataloader, loss_fn, optimizer, device)
+        #print(f"Epoch {epoch+1}: data loss: {loss_epoch}, PINN loss: {loss_pinn}")
+        print(f"Epoch {epoch+1}: data loss: {loss_epoch}")
