@@ -12,7 +12,7 @@ class EshelbyDataset(Dataset):
         self.u_4 = torch.tensor(self.mesh.point_data["u_4"],dtype=torch.float32)
         self.u_5 = torch.tensor(self.mesh.point_data["u_5"],dtype=torch.float32)
         self.u_6 = torch.tensor(self.mesh.point_data["u_6"],dtype=torch.float32)
-        self.is_inclusion_pt = self.mesh.cell_data_to_point_data().point_data["inclusion"].astype(bool)
+        #self.is_inclusion_pt = self.mesh.cell_data_to_point_data().point_data["inclusion"].astype(bool)
 
         with open("parameter_overview.csv") as f:
             parameters = csv.DictReader(f)
@@ -31,4 +31,7 @@ class EshelbyDataset(Dataset):
         return len(self.mesh.points)
 
     def __getitem__(self, index):
-        return torch.tensor(self.mesh.points[index],dtype=torch.float32), torch.cat([self.u_1[index],self.u_2[index],self.u_3[index],self.u_4[index],self.u_5[index],self.u_6[index]]), torch.tensor(self.lambda_inclusion), torch.tensor(self.mu_inclusion), torch.tensor(self.lambda_matrix), torch.tensor(self.mu_matrix), torch.tensor(self.is_inclusion_pt[index])
+        return torch.tensor(self.mesh.points[index],dtype=torch.float32), torch.cat([self.u_1[index],self.u_2[index],self.u_3[index],self.u_4[index],self.u_5[index],self.u_6[index]])
+
+    def is_inclusion(self, pos):
+        return self.mesh.cell_data["inclusion"][self.mesh.find_containing_cell([pos[0],pos[1],pos[2]])].astype(bool)
