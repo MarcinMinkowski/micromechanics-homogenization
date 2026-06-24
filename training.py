@@ -50,7 +50,7 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, device):
 
         u1z_laplacian = du1z_dxd[0] + du1z_dyd[1] + du1z_dzd[2]
 
-        if data.is_inclusion(point_pinn.detach().numpy()):
+        if data.is_inclusion(point_pinn.detach().cpu()):
             lam = data.lambda_inclusion
             mu = data.mu_inclusion
         else:

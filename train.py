@@ -26,7 +26,7 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(),lr=1e-3)
 
     for epoch in range(10):
-        loss_epoch, loss_pinn = training.train_loop(model, dataloader, loss_fn, optimizer, device)
+        loss_epoch, loss_pinn = training.train_loop(data, model, dataloader, loss_fn, optimizer, device)
         #loss_epoch = training.train_loop(model, dataloader, loss_fn, optimizer, device)
         print(f"Epoch {epoch+1}: data loss: {loss_epoch}, PINN loss: {loss_pinn}")
         #print(f"Epoch {epoch+1}: data loss: {loss_epoch}")
