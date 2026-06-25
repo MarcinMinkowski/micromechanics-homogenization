@@ -34,4 +34,4 @@ class EshelbyDataset(Dataset):
         return torch.tensor(self.mesh.points[index],dtype=torch.float32), torch.cat([self.u_1[index],self.u_2[index],self.u_3[index],self.u_4[index],self.u_5[index],self.u_6[index]])
 
     def is_inclusion(self, pos):
-        return self.mesh.cell_data["inclusion"][self.mesh.find_containing_cell([pos[0],pos[1],pos[2]])].astype(bool)
+        return torch.tensor(self.mesh.cell_data["inclusion"][self.mesh.find_containing_cell(pos)].astype(bool))
