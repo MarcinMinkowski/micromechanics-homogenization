@@ -52,7 +52,7 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, device):
         point_pinn = point_pinn.clone()
         point_pinn = point_pinn.to(device)
 
-        is_inclusion = data.is_inclusion(point_pinn.detach().numpy()) #check which points are in inclusion and which in matrix
+        is_inclusion = data.is_inclusion(point_pinn.detach().cpu().numpy()) #check which points are in inclusion and which in matrix
         lam = torch.where(is_inclusion == True, data.lambda_inclusion, data.lambda_matrix)
         mu = torch.where(is_inclusion == True, data.mu_inclusion, data.mu_matrix)
 
