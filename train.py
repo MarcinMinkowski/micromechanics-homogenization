@@ -18,7 +18,7 @@ if __name__ == "__main__":
 
     train_dataset, test_dataset = random_split(data, [0.8,0.2])
 
-    train_dataloader = DataLoader(dataset=train_dataset, shuffle=True, batch_size=100, num_workers=7)
+    train_dataloader = DataLoader(dataset=train_dataset, shuffle=True, batch_size=1000, num_workers=7)
     test_dataloader = DataLoader(dataset=test_dataset)
 
     model = Net()
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(),lr=1e-3)
 
     for epoch in range(10):
-        loss_epoch, loss_pinn = training.train_loop(data, model, dataloader, loss_fn, optimizer, device)
+        loss_epoch, loss_pinn = training.train_loop(data, model, train_dataloader, loss_fn, optimizer, device)
         #loss_epoch = training.train_loop(model, dataloader, loss_fn, optimizer, device)
         print(f"Epoch {epoch+1}: data loss: {loss_epoch}, PINN loss: {loss_pinn}")
         #print(f"Epoch {epoch+1}: data loss: {loss_epoch}")
