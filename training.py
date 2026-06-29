@@ -49,16 +49,10 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, device):
         pred = model(point)
         loss_data = loss_fn(pred,u)
 
-<<<<<<< HEAD
-        point_pinn = 60*torch.rand(50,3,requires_grad=True)-30        #random points at which derivates for Navier-Cauchy equation are obtained
-        point_pinn = point_pinn.clone()
-        point_pinn = point_pinn.to(device)
-=======
         if is_PINN:
             point_pinn = 60*torch.rand(5,3,requires_grad=True)-30        #random points at which derivates for Navier-Cauchy equation are obtained
             point_pinn = point_pinn.clone()
             point_pinn = point_pinn.to(device)
->>>>>>> 173f901 (PINN optional)
 
             is_inclusion = data.is_inclusion(point_pinn.detach().cpu().numpy()) #check which points are in inclusion and which in matrix
             lam = torch.where(is_inclusion == True, data.lambda_inclusion, data.lambda_matrix)
