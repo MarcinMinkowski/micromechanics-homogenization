@@ -50,7 +50,7 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, device):
         loss_data = loss_fn(pred,u)
 
         if is_PINN:
-            point_pinn = 60*torch.rand(5,3,requires_grad=True)-30        #random points at which derivates for Navier-Cauchy equation are obtained
+            point_pinn = 60*torch.rand(50,3,requires_grad=True)-30        #random points at which derivates for Navier-Cauchy equation are obtained
             point_pinn = point_pinn.clone()
             point_pinn = point_pinn.to(device)
 
