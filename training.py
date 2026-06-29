@@ -34,9 +34,10 @@ def residual(ux, uy, uz, X, lam, mu):
 
     return (lam+mu)*du_div_d[:,0]+mu*ux_laplacian, (lam+mu)*du_div_d[:,1]+mu*uy_laplacian, (lam+mu)*du_div_d[:,2]+mu*uz_laplacian
 
-def train_loop(data, model, dataloader, loss_fn, optimizer, device):
+def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, device):
     loss_data_epoch = 0.0
-    loss_pinn_epoch = 0.0
+    if is_PINN:
+        loss_pinn_epoch = 0.0
     
     for (point,u) in dataloader:
         point = point.clone()
@@ -48,36 +49,45 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, device):
         pred = model(point)
         loss_data = loss_fn(pred,u)
 
+<<<<<<< HEAD
         point_pinn = 60*torch.rand(50,3,requires_grad=True)-30        #random points at which derivates for Navier-Cauchy equation are obtained
         point_pinn = point_pinn.clone()
         point_pinn = point_pinn.to(device)
+=======
+        if is_PINN:
+            point_pinn = 60*torch.rand(5,3,requires_grad=True)-30        #random points at which derivates for Navier-Cauchy equation are obtained
+            point_pinn = point_pinn.clone()
+            point_pinn = point_pinn.to(device)
+>>>>>>> 173f901 (PINN optional)
 
-        is_inclusion = data.is_inclusion(point_pinn.detach().cpu().numpy()) #check which points are in inclusion and which in matrix
-        lam = torch.where(is_inclusion == True, data.lambda_inclusion, data.lambda_matrix)
-        mu = torch.where(is_inclusion == True, data.mu_inclusion, data.mu_matrix)
+            is_inclusion = data.is_inclusion(point_pinn.detach().cpu().numpy()) #check which points are in inclusion and which in matrix
+            lam = torch.where(is_inclusion == True, data.lambda_inclusion, data.lambda_matrix)
+            mu = torch.where(is_inclusion == True, data.mu_inclusion, data.mu_matrix)
 
-        lam = lam.clone()
-        lam = lam.to(device)
-        mu = mu.clone()
-        mu = mu.to(device)
+            lam = lam.clone()
+            lam = lam.to(device)
+            mu = mu.clone()
+            mu = mu.to(device)
 
-        u = model(point_pinn)
+            u = model(point_pinn)
         
-        res1_x, res1_y, res1_z = residual(u[:,0], u[:,1], u[:,2], point_pinn, lam, mu)
-        res2_x, res2_y, res2_z = residual(u[:,3], u[:,4], u[:,5], point_pinn, lam, mu)
-        res3_x, res3_y, res3_z = residual(u[:,6], u[:,7], u[:,8], point_pinn, lam, mu)
-        res4_x, res4_y, res4_z = residual(u[:,9], u[:,10], u[:,11], point_pinn, lam, mu)
-        res5_x, res5_y, res5_z = residual(u[:,12], u[:,13], u[:,14], point_pinn, lam, mu)
-        res6_x, res6_y, res6_z = residual(u[:,15], u[:,16], u[:,17], point_pinn, lam, mu)
+            res1_x, res1_y, res1_z = residual(u[:,0], u[:,1], u[:,2], point_pinn, lam, mu)
+            res2_x, res2_y, res2_z = residual(u[:,3], u[:,4], u[:,5], point_pinn, lam, mu)
+            res3_x, res3_y, res3_z = residual(u[:,6], u[:,7], u[:,8], point_pinn, lam, mu)
+            res4_x, res4_y, res4_z = residual(u[:,9], u[:,10], u[:,11], point_pinn, lam, mu)
+            res5_x, res5_y, res5_z = residual(u[:,12], u[:,13], u[:,14], point_pinn, lam, mu)
+            res6_x, res6_y, res6_z = residual(u[:,15], u[:,16], u[:,17], point_pinn, lam, mu)
         
-        loss_pinn = loss_fn(res1_x,torch.zeros_like(res1_x)) + loss_fn(res1_y,torch.zeros_like(res1_y)) + loss_fn(res1_z,torch.zeros_like(res1_z)) + \
-                    loss_fn(res2_x,torch.zeros_like(res2_x)) + loss_fn(res2_y,torch.zeros_like(res2_y)) + loss_fn(res2_z,torch.zeros_like(res2_z)) + \
-                    loss_fn(res3_x,torch.zeros_like(res3_x)) + loss_fn(res3_y,torch.zeros_like(res3_y)) + loss_fn(res3_z,torch.zeros_like(res3_z)) + \
-                    loss_fn(res4_x,torch.zeros_like(res4_x)) + loss_fn(res4_y,torch.zeros_like(res4_y)) + loss_fn(res4_z,torch.zeros_like(res4_z)) + \
-                    loss_fn(res5_x,torch.zeros_like(res5_x)) + loss_fn(res5_y,torch.zeros_like(res5_y)) + loss_fn(res5_z,torch.zeros_like(res5_z)) + \
-                    loss_fn(res6_x,torch.zeros_like(res6_x)) + loss_fn(res6_y,torch.zeros_like(res6_y)) + loss_fn(res6_z,torch.zeros_like(res6_z))
+            loss_pinn = loss_fn(res1_x,torch.zeros_like(res1_x)) + loss_fn(res1_y,torch.zeros_like(res1_y)) + loss_fn(res1_z,torch.zeros_like(res1_z)) + \
+                        loss_fn(res2_x,torch.zeros_like(res2_x)) + loss_fn(res2_y,torch.zeros_like(res2_y)) + loss_fn(res2_z,torch.zeros_like(res2_z)) + \
+                        loss_fn(res3_x,torch.zeros_like(res3_x)) + loss_fn(res3_y,torch.zeros_like(res3_y)) + loss_fn(res3_z,torch.zeros_like(res3_z)) + \
+                        loss_fn(res4_x,torch.zeros_like(res4_x)) + loss_fn(res4_y,torch.zeros_like(res4_y)) + loss_fn(res4_z,torch.zeros_like(res4_z)) + \
+                        loss_fn(res5_x,torch.zeros_like(res5_x)) + loss_fn(res5_y,torch.zeros_like(res5_y)) + loss_fn(res5_z,torch.zeros_like(res5_z)) + \
+                        loss_fn(res6_x,torch.zeros_like(res6_x)) + loss_fn(res6_y,torch.zeros_like(res6_y)) + loss_fn(res6_z,torch.zeros_like(res6_z))
 
-        loss = loss_data + loss_pinn
+            loss = loss_data + 100*loss_pinn
+        else:
+            loss = loss_data
         
         loss.backward()
         optimizer.step()
@@ -86,14 +96,16 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, device):
         loss = loss.item()
         
         loss_data_epoch += loss_data
-        loss_pinn_epoch += loss_pinn
+        if is_PINN:
+            loss_pinn_epoch += loss_pinn
 
     loss_data_epoch /= len(dataloader)
-    loss_pinn_epoch /= len(dataloader)
-    #loss /= len(dataloader)
+    if is_PINN:
+        loss_pinn_epoch /= len(dataloader)
+    else:
+        loss_pinn_epoch = None
 
     return loss_data_epoch, loss_pinn_epoch
-    #return loss
 
 def test_loop(model, dataloader, loss_fn, device):
     loss = 0.0
