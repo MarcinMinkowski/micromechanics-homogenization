@@ -116,8 +116,8 @@ def test_loop(model, dataloader, loss_fn, scaler, device):
             pred = model(point)
             loss += loss_fn(pred,u)
 
-            u = scaler.inverse_transform(u)
-            pred = scaler.inverse_transform(pred)
+            u = scaler.inverse_transform(u.cpu())
+            pred = scaler.inverse_transform(pred.cpu())
 
             for i, value in enumerate(pred[0]):
                 f.write(str(u[0][i].item()) + " " + str(value.item()) + " ")
