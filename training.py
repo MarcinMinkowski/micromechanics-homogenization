@@ -101,7 +101,7 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, device):
 
     return loss_data_epoch, loss_pinn_epoch
 
-def test_loop(model, dataloader, loss_fn, device):
+def test_loop(model, dataloader, loss_fn, scaler, device):
     loss = 0.0
     with torch.no_grad():
         f = open("pred.dat","w")
@@ -115,6 +115,9 @@ def test_loop(model, dataloader, loss_fn, device):
 
             pred = model(point)
             loss += loss_fn(pred,u)
+
+            u = scaler.inverse_transform(u)
+            pred = scaler.inverse_transform(pred)
 
             for i, value in enumerate(pred[0]):
                 f.write(str(u[0][i].item()) + " " + str(value.item()) + " ")

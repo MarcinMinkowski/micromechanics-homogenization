@@ -1,8 +1,10 @@
 import pyvista as pv
 import h5py
+import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, random_split
+from sklearn.preprocessing import StandardScaler
 from dataset import EshelbyDataset
 import csv
 from model import Net
@@ -14,11 +16,34 @@ if __name__ == "__main__":
 
     print(device)
 
-    data = EshelbyDataset()
+    mesh = pv.read("sim0001_alto.vtu")
 
-    train_dataset, test_dataset = random_split(data, [0.8,0.2])
+    points = torch.tensor(mesh.points,dtype=torch.float32)
 
-    train_dataloader = DataLoader(dataset=train_dataset, shuffle=True, batch_size=1000, num_workers=7)
+    u_1 = torch.tensor(mesh.point_data["u_1"],dtype=torch.float32)
+    u_2 = torch.tensor(mesh.point_data["u_2"],dtype=torch.float32)
+    u_3 = torch.tensor(mesh.point_data["u_3"],dtype=torch.float32)
+    u_4 = torch.tensor(mesh.point_data["u_4"],dtype=torch.float32)
+    u_5 = torch.tensor(mesh.point_data["u_5"],dtype=torch.float32)
+    u_6 = torch.tensor(mesh.point_data["u_6"],dtype=torch.float32)
+
+    u = torch.cat([u_1,u_2,u_3,u_4,u_5,u_6],axis=-1)
+
+    generator = torch.Generator().manual_seed(0)
+    points_train, points_test = random_split(points,[0.8,0.2],generator=generator)
+    generator = torch.Generator().manual_seed(0)
+    u_train, u_test = random_split(u,[0.8,0.2],generator=generator)
+
+    scaler = StandardScaler()
+    scaler.fit(u_train)
+
+    u_train_scaled = scaler.transform(u_train).astype(np.float32)
+    u_test_scaled = scaler.transform(u_test).astype(np.float32)
+
+    train_dataset = EshelbyDataset(mesh,points_train,u_train_scaled)
+    test_dataset = EshelbyDataset(mesh,points_test,u_test_scaled)
+
+    train_dataloader = DataLoader(dataset=train_dataset, shuffle=True, batch_size=100)
     test_dataloader = DataLoader(dataset=test_dataset)
 
     model = Net()
@@ -28,13 +53,11 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(model.parameters(),lr=1e-3)
 
-    is_PINN = True
+    is_PINN = False
 
     for epoch in range(10):
-        loss_epoch, loss_pinn = training.train_loop(data, model, train_dataloader, loss_fn, optimizer, is_PINN, device)
-        #loss_epoch = training.train_loop(model, dataloader, loss_fn, optimizer, device)
+        loss_epoch, loss_pinn = training.train_loop(train_dataset, model, train_dataloader, loss_fn, optimizer, is_PINN, device)
         print(f"Epoch {epoch+1}: data loss: {loss_epoch}, PINN loss: {loss_pinn}")
-        #print(f"Epoch {epoch+1}: data loss: {loss_epoch}")
 
-    test_loss = training.test_loop(model, test_dataloader, loss_fn, device)
+    test_loss = training.test_loop(model, test_dataloader, loss_fn, scaler, device)
     print(f"Test set loss: {test_loss}")

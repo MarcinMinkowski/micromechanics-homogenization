@@ -4,15 +4,16 @@ from torch.utils.data import Dataset
 import csv
 
 class EshelbyDataset(Dataset):
-    def __init__(self):
-        self.mesh = pv.read("sim0001_alto.vtu")
-        self.u_1 = torch.tensor(self.mesh.point_data["u_1"],dtype=torch.float32)
-        self.u_2 = torch.tensor(self.mesh.point_data["u_2"],dtype=torch.float32)
-        self.u_3 = torch.tensor(self.mesh.point_data["u_3"],dtype=torch.float32)
-        self.u_4 = torch.tensor(self.mesh.point_data["u_4"],dtype=torch.float32)
-        self.u_5 = torch.tensor(self.mesh.point_data["u_5"],dtype=torch.float32)
-        self.u_6 = torch.tensor(self.mesh.point_data["u_6"],dtype=torch.float32)
-        #self.is_inclusion_pt = self.mesh.cell_data_to_point_data().point_data["inclusion"].astype(bool)
+    def __init__(self,mesh,points,u):
+        self.mesh = mesh
+        self.points = points
+        self.u = u
+        #self.u_1 = torch.tensor(self.mesh.point_data["u_1"],dtype=torch.float32)
+        #self.u_2 = torch.tensor(self.mesh.point_data["u_2"],dtype=torch.float32)
+        #self.u_3 = torch.tensor(self.mesh.point_data["u_3"],dtype=torch.float32)
+        #self.u_4 = torch.tensor(self.mesh.point_data["u_4"],dtype=torch.float32)
+        #self.u_5 = torch.tensor(self.mesh.point_data["u_5"],dtype=torch.float32)
+        #self.u_6 = torch.tensor(self.mesh.point_data["u_6"],dtype=torch.float32)
 
         with open("parameter_overview.csv") as f:
             parameters = csv.DictReader(f)
@@ -28,10 +29,11 @@ class EshelbyDataset(Dataset):
         self.mu_matrix = E_matrix/(2*(1+nu_matrix))
 
     def __len__(self):
-        return len(self.mesh.points)
+        return len(self.points)
 
     def __getitem__(self, index):
-        return torch.tensor(self.mesh.points[index],dtype=torch.float32), torch.cat([self.u_1[index],self.u_2[index],self.u_3[index],self.u_4[index],self.u_5[index],self.u_6[index]])
+        #return torch.tensor(self.points[index],dtype=torch.float32), torch.cat([self.u_1[index],self.u_2[index],self.u_3[index],self.u_4[index],self.u_5[index],self.u_6[index]])
+        return self.points[index], self.u[index]
 
     def is_inclusion(self, pos):
         return torch.tensor(self.mesh.cell_data["inclusion"][self.mesh.find_containing_cell(pos)].astype(bool))
