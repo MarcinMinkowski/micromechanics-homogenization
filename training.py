@@ -40,19 +40,15 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, device):
         loss_pinn_epoch = 0.0
     
     for (point,u) in dataloader:
-        point = point.clone()
         point = point.to(device)
 
-        u = u.clone()
         u = u.to(device)
         
         pred = model(point)
         loss_data = loss_fn(pred,u)
 
         if is_PINN:
-            point_pinn = 60*torch.rand(50,3,requires_grad=True)-30        #random points at which derivates for Navier-Cauchy equation are obtained
-            point_pinn = point_pinn.clone()
-            point_pinn = point_pinn.to(device)
+            point_pinn = 60*torch.rand(50,3,requires_grad=True,device=device)-30        #random points at which derivates for Navier-Cauchy equation are obtained
 
             is_inclusion = data.is_inclusion(point_pinn.detach().cpu().numpy()) #check which points are in inclusion and which in matrix
             lam = torch.where(is_inclusion == True, data.lambda_inclusion, data.lambda_matrix)
@@ -89,9 +85,9 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, device):
 
         loss = loss.item()
         
-        loss_data_epoch += loss_data
+        loss_data_epoch += loss_data.item()
         if is_PINN:
-            loss_pinn_epoch += loss_pinn
+            loss_pinn_epoch += loss_pinn.item()
 
     loss_data_epoch /= len(dataloader)
     if is_PINN:
@@ -107,14 +103,14 @@ def test_loop(model, dataloader, loss_fn, scaler, device):
         f = open("pred.dat","w")
         f.write("#u1x_true u1x_pred u1y_true u1y_pred u1z_true u1z_pred u2x_true u2x_pred u2y_true u2y_pred u2z_true u2z_pred u3x_true u3x_pred u3y_true u3y_pred u3z_true u3z_pred u4x_true u4x_pred u4y_true u4y_pred u4z_true u4z_pred u5x_true u5x_pred u5y_true u5y_pred u5z_true u5z_pred u6x_true u6x_pred u6y_true u6y_pred u6z_true u6z_pred\n")
         for (point, u) in dataloader:
-            point = point.clone()
+            #point = point.clone()
             point = point.to(device)
 
-            u = u.clone()
+            #u = u.clone()
             u = u.to(device)
 
             pred = model(point)
-            loss += loss_fn(pred,u)
+            loss += loss_fn(pred,u).item()
 
             u = scaler.inverse_transform(u.cpu())
             pred = scaler.inverse_transform(pred.cpu())
