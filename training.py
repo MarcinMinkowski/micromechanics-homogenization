@@ -34,7 +34,7 @@ def residual(ux, uy, uz, X, lam, mu):
 
     return (lam+mu)*du_div_d[:,0]+mu*ux_laplacian, (lam+mu)*du_div_d[:,1]+mu*uy_laplacian, (lam+mu)*du_div_d[:,2]+mu*uz_laplacian
 
-def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, device):
+def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, scaler, device):
     loss_data_epoch = 0.0
     if is_PINN:
         loss_pinn_epoch = 0.0
@@ -59,14 +59,15 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, device):
             mu = mu.clone()
             mu = mu.to(device)
 
-            u = model(point_pinn)
+            u_pinn = model(point_pinn)
+            u_pinn = u_pinn*torch.tensor(scaler.scale_,device=device) + torch.tensor(scaler.mean_,device=device)
         
-            res1_x, res1_y, res1_z = residual(u[:,0], u[:,1], u[:,2], point_pinn, lam, mu)
-            res2_x, res2_y, res2_z = residual(u[:,3], u[:,4], u[:,5], point_pinn, lam, mu)
-            res3_x, res3_y, res3_z = residual(u[:,6], u[:,7], u[:,8], point_pinn, lam, mu)
-            res4_x, res4_y, res4_z = residual(u[:,9], u[:,10], u[:,11], point_pinn, lam, mu)
-            res5_x, res5_y, res5_z = residual(u[:,12], u[:,13], u[:,14], point_pinn, lam, mu)
-            res6_x, res6_y, res6_z = residual(u[:,15], u[:,16], u[:,17], point_pinn, lam, mu)
+            res1_x, res1_y, res1_z = residual(u_pinn[:,0], u_pinn[:,1], u_pinn[:,2], point_pinn, lam, mu)
+            res2_x, res2_y, res2_z = residual(u_pinn[:,3], u_pinn[:,4], u_pinn[:,5], point_pinn, lam, mu)
+            res3_x, res3_y, res3_z = residual(u_pinn[:,6], u_pinn[:,7], u_pinn[:,8], point_pinn, lam, mu)
+            res4_x, res4_y, res4_z = residual(u_pinn[:,9], u_pinn[:,10], u_pinn[:,11], point_pinn, lam, mu)
+            res5_x, res5_y, res5_z = residual(u_pinn[:,12], u_pinn[:,13], u_pinn[:,14], point_pinn, lam, mu)
+            res6_x, res6_y, res6_z = residual(u_pinn[:,15], u_pinn[:,16], u_pinn[:,17], point_pinn, lam, mu)
         
             loss_pinn = loss_fn(res1_x,torch.zeros_like(res1_x)) + loss_fn(res1_y,torch.zeros_like(res1_y)) + loss_fn(res1_z,torch.zeros_like(res1_z)) + \
                         loss_fn(res2_x,torch.zeros_like(res2_x)) + loss_fn(res2_y,torch.zeros_like(res2_y)) + loss_fn(res2_z,torch.zeros_like(res2_z)) + \
@@ -103,10 +104,8 @@ def test_loop(model, dataloader, loss_fn, scaler, device):
         f = open("pred.dat","w")
         f.write("#u1x_true u1x_pred u1y_true u1y_pred u1z_true u1z_pred u2x_true u2x_pred u2y_true u2y_pred u2z_true u2z_pred u3x_true u3x_pred u3y_true u3y_pred u3z_true u3z_pred u4x_true u4x_pred u4y_true u4y_pred u4z_true u4z_pred u5x_true u5x_pred u5y_true u5y_pred u5z_true u5z_pred u6x_true u6x_pred u6y_true u6y_pred u6z_true u6z_pred\n")
         for (point, u) in dataloader:
-            #point = point.clone()
             point = point.to(device)
 
-            #u = u.clone()
             u = u.to(device)
 
             pred = model(point)

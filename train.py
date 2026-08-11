@@ -53,10 +53,10 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(model.parameters(),lr=1e-3)
 
-    is_PINN = False
+    is_PINN = True
 
-    for epoch in range(10):
-        loss_epoch, loss_pinn = training.train_loop(train_dataset, model, train_dataloader, loss_fn, optimizer, is_PINN, device)
+    for epoch in range(5):
+        loss_epoch, loss_pinn = training.train_loop(train_dataset, model, train_dataloader, loss_fn, optimizer, is_PINN, scaler, device)
         print(f"Epoch {epoch+1}: data loss: {loss_epoch}, PINN loss: {loss_pinn}")
 
     test_loss = training.test_loop(model, test_dataloader, loss_fn, scaler, device)
