@@ -12,23 +12,23 @@ def residual(ux, uy, uz, X, lam, mu):
 
     u_div = dux_dx + duy_dy + duz_dz
 
-    du_div_d = torch.autograd.grad(outputs=u_div,inputs=X,grad_outputs=torch.ones_like(u_div),retain_graph=True)[0]
+    du_div_d = torch.autograd.grad(outputs=u_div,inputs=X,grad_outputs=torch.ones_like(u_div),retain_graph=True,create_graph=True)[0]
 
-    dux_dxd = torch.autograd.grad(outputs=dux_dx,inputs=X,grad_outputs=torch.ones_like(dux_dx),retain_graph=True)[0]
-    dux_dyd = torch.autograd.grad(outputs=dux_dy,inputs=X,grad_outputs=torch.ones_like(dux_dy),retain_graph=True)[0]
-    dux_dzd = torch.autograd.grad(outputs=dux_dz,inputs=X,grad_outputs=torch.ones_like(dux_dz),retain_graph=True)[0]
+    dux_dxd = torch.autograd.grad(outputs=dux_dx,inputs=X,grad_outputs=torch.ones_like(dux_dx),retain_graph=True,create_graph=True)[0]
+    dux_dyd = torch.autograd.grad(outputs=dux_dy,inputs=X,grad_outputs=torch.ones_like(dux_dy),retain_graph=True,create_graph=True)[0]
+    dux_dzd = torch.autograd.grad(outputs=dux_dz,inputs=X,grad_outputs=torch.ones_like(dux_dz),retain_graph=True,create_graph=True)[0]
 
     ux_laplacian = dux_dxd[:,0] + dux_dyd[:,1] + dux_dzd[:,2]
         
-    duy_dxd = torch.autograd.grad(outputs=duy_dx,inputs=X,grad_outputs=torch.ones_like(duy_dx),retain_graph=True)[0]
-    duy_dyd = torch.autograd.grad(outputs=duy_dy,inputs=X,grad_outputs=torch.ones_like(duy_dy),retain_graph=True)[0]
-    duy_dzd = torch.autograd.grad(outputs=duy_dz,inputs=X,grad_outputs=torch.ones_like(duy_dz),retain_graph=True)[0]
+    duy_dxd = torch.autograd.grad(outputs=duy_dx,inputs=X,grad_outputs=torch.ones_like(duy_dx),retain_graph=True,create_graph=True)[0]
+    duy_dyd = torch.autograd.grad(outputs=duy_dy,inputs=X,grad_outputs=torch.ones_like(duy_dy),retain_graph=True,create_graph=True)[0]
+    duy_dzd = torch.autograd.grad(outputs=duy_dz,inputs=X,grad_outputs=torch.ones_like(duy_dz),retain_graph=True,create_graph=True)[0]
 
     uy_laplacian = duy_dxd[:,0] + duy_dyd[:,1] + duy_dzd[:,2]
 
-    duz_dxd = torch.autograd.grad(outputs=duz_dx,inputs=X,grad_outputs=torch.ones_like(duz_dx),retain_graph=True)[0]
-    duz_dyd = torch.autograd.grad(outputs=duz_dy,inputs=X,grad_outputs=torch.ones_like(duz_dy),retain_graph=True)[0]
-    duz_dzd = torch.autograd.grad(outputs=duz_dz,inputs=X,grad_outputs=torch.ones_like(duz_dz),retain_graph=True)[0]
+    duz_dxd = torch.autograd.grad(outputs=duz_dx,inputs=X,grad_outputs=torch.ones_like(duz_dx),retain_graph=True,create_graph=True)[0]
+    duz_dyd = torch.autograd.grad(outputs=duz_dy,inputs=X,grad_outputs=torch.ones_like(duz_dy),retain_graph=True,create_graph=True)[0]
+    duz_dzd = torch.autograd.grad(outputs=duz_dz,inputs=X,grad_outputs=torch.ones_like(duz_dz),retain_graph=True,create_graph=True)[0]
 
     uz_laplacian = duz_dxd[:,0] + duz_dyd[:,1] + duz_dzd[:,2]
 
@@ -38,6 +38,8 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, scaler, dev
     loss_data_epoch = 0.0
     if is_PINN:
         loss_pinn_epoch = 0.0
+        scale_tensor = torch.tensor(scaler.scale_,device=device)
+        mean_tensor = torch.tensor(scaler.mean_,device=device)
     
     for (point,u) in dataloader:
         point = point.to(device)
@@ -46,21 +48,22 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, scaler, dev
         
         pred = model(point)
         loss_data = loss_fn(pred,u)
+        
 
         if is_PINN:
-            point_pinn = 60*torch.rand(50,3,requires_grad=True,device=device)-30        #random points at which derivates for Navier-Cauchy equation are obtained
+            point_pinn = (60*torch.rand(50,3,device=device)-30).requires_grad_(True)        #random points at which derivates for Navier-Cauchy equation are obtained
 
             is_inclusion = data.is_inclusion(point_pinn.detach().cpu().numpy()) #check which points are in inclusion and which in matrix
             lam = torch.where(is_inclusion == True, data.lambda_inclusion, data.lambda_matrix)
             mu = torch.where(is_inclusion == True, data.mu_inclusion, data.mu_matrix)
 
-            lam = lam.clone()
+            #lam = lam.clone()
             lam = lam.to(device)
-            mu = mu.clone()
+            #mu = mu.clone()
             mu = mu.to(device)
 
             u_pinn = model(point_pinn)
-            u_pinn = u_pinn*torch.tensor(scaler.scale_,device=device) + torch.tensor(scaler.mean_,device=device)
+            u_pinn = u_pinn*scale_tensor + mean_tensor
         
             res1_x, res1_y, res1_z = residual(u_pinn[:,0], u_pinn[:,1], u_pinn[:,2], point_pinn, lam, mu)
             res2_x, res2_y, res2_z = residual(u_pinn[:,3], u_pinn[:,4], u_pinn[:,5], point_pinn, lam, mu)
@@ -76,7 +79,7 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, scaler, dev
                         loss_fn(res5_x,torch.zeros_like(res5_x)) + loss_fn(res5_y,torch.zeros_like(res5_y)) + loss_fn(res5_z,torch.zeros_like(res5_z)) + \
                         loss_fn(res6_x,torch.zeros_like(res6_x)) + loss_fn(res6_y,torch.zeros_like(res6_y)) + loss_fn(res6_z,torch.zeros_like(res6_z))
 
-            loss = loss_data + 100*loss_pinn
+            loss = loss_data + loss_pinn
         else:
             loss = loss_data
         
