@@ -5,7 +5,7 @@ def residual(ux, uy, uz, X, lam, mu):
     dux = torch.autograd.grad(outputs=ux,inputs=X,grad_outputs=torch.ones_like(ux),retain_graph=True,create_graph=True)[0]
     duy = torch.autograd.grad(outputs=uy,inputs=X,grad_outputs=torch.ones_like(uy),retain_graph=True,create_graph=True)[0]
     duz = torch.autograd.grad(outputs=uz,inputs=X,grad_outputs=torch.ones_like(uz),retain_graph=True,create_graph=True)[0]
-
+    
     dux_dx, dux_dy, dux_dz = dux[:,0], dux[:,1], dux[:,2]
     duy_dx, duy_dy, duy_dz = duy[:,0], duy[:,1], duy[:,2]
     duz_dx, duz_dy, duz_dz = duz[:,0], duz[:,1], duz[:,2]
@@ -57,27 +57,17 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, scaler, dev
             lam = torch.where(is_inclusion == True, data.lambda_inclusion, data.lambda_matrix)
             mu = torch.where(is_inclusion == True, data.mu_inclusion, data.mu_matrix)
 
-            #lam = lam.clone()
             lam = lam.to(device)
-            #mu = mu.clone()
             mu = mu.to(device)
 
             u_pinn = model(point_pinn)
             u_pinn = u_pinn*scale_tensor + mean_tensor
-        
-            res1_x, res1_y, res1_z = residual(u_pinn[:,0], u_pinn[:,1], u_pinn[:,2], point_pinn, lam, mu)
-            res2_x, res2_y, res2_z = residual(u_pinn[:,3], u_pinn[:,4], u_pinn[:,5], point_pinn, lam, mu)
-            res3_x, res3_y, res3_z = residual(u_pinn[:,6], u_pinn[:,7], u_pinn[:,8], point_pinn, lam, mu)
-            res4_x, res4_y, res4_z = residual(u_pinn[:,9], u_pinn[:,10], u_pinn[:,11], point_pinn, lam, mu)
-            res5_x, res5_y, res5_z = residual(u_pinn[:,12], u_pinn[:,13], u_pinn[:,14], point_pinn, lam, mu)
-            res6_x, res6_y, res6_z = residual(u_pinn[:,15], u_pinn[:,16], u_pinn[:,17], point_pinn, lam, mu)
-        
-            loss_pinn = loss_fn(res1_x,torch.zeros_like(res1_x)) + loss_fn(res1_y,torch.zeros_like(res1_y)) + loss_fn(res1_z,torch.zeros_like(res1_z)) + \
-                        loss_fn(res2_x,torch.zeros_like(res2_x)) + loss_fn(res2_y,torch.zeros_like(res2_y)) + loss_fn(res2_z,torch.zeros_like(res2_z)) + \
-                        loss_fn(res3_x,torch.zeros_like(res3_x)) + loss_fn(res3_y,torch.zeros_like(res3_y)) + loss_fn(res3_z,torch.zeros_like(res3_z)) + \
-                        loss_fn(res4_x,torch.zeros_like(res4_x)) + loss_fn(res4_y,torch.zeros_like(res4_y)) + loss_fn(res4_z,torch.zeros_like(res4_z)) + \
-                        loss_fn(res5_x,torch.zeros_like(res5_x)) + loss_fn(res5_y,torch.zeros_like(res5_y)) + loss_fn(res5_z,torch.zeros_like(res5_z)) + \
-                        loss_fn(res6_x,torch.zeros_like(res6_x)) + loss_fn(res6_y,torch.zeros_like(res6_y)) + loss_fn(res6_z,torch.zeros_like(res6_z))
+
+            u_pinn = u_pinn.view(50,6,3)
+
+            res_x, res_y, res_z = residual(u_pinn[:,:,0], u_pinn[:,:,1], u_pinn[:,:,2], point_pinn, lam, mu)
+
+            loss_pinn = loss_fn(res_x,torch.zeros_like(res_x)) + loss_fn(res_y,torch.zeros_like(res_y)) + loss_fn(res_z,torch.zeros_like(res_z))
 
             loss = loss_data + loss_pinn
         else:
