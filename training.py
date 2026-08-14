@@ -1,38 +1,34 @@
 import torch
+from torch.func import jacrev, vmap
 
-def residual(ux, uy, uz, X, lam, mu):
+def residual(model, X, scale_tensor, mean_tensor, lam, mu):
 
-    dux = torch.autograd.grad(outputs=ux,inputs=X,grad_outputs=torch.ones_like(ux),retain_graph=True,create_graph=True)[0]
-    duy = torch.autograd.grad(outputs=uy,inputs=X,grad_outputs=torch.ones_like(uy),retain_graph=True,create_graph=True)[0]
-    duz = torch.autograd.grad(outputs=uz,inputs=X,grad_outputs=torch.ones_like(uz),retain_graph=True,create_graph=True)[0]
-    
-    dux_dx, dux_dy, dux_dz = dux[:,0], dux[:,1], dux[:,2]
-    duy_dx, duy_dy, duy_dz = duy[:,0], duy[:,1], duy[:,2]
-    duz_dx, duz_dy, duz_dz = duz[:,0], duz[:,1], duz[:,2]
+    def unscaled_output(X):
+        return (model(X)*scale_tensor + mean_tensor).view(-1,6,3)
 
-    u_div = dux_dx + duy_dy + duz_dz
+    hessian = vmap(jacrev(jacrev(unscaled_output)))(X).squeeze()
 
-    du_div_d = torch.autograd.grad(outputs=u_div,inputs=X,grad_outputs=torch.ones_like(u_div),retain_graph=True,create_graph=True)[0]
+    dux_dxdx = hessian[:,:,0,0,0]
+    dux_dydy = hessian[:,:,0,1,1]
+    dux_dzdz = hessian[:,:,0,2,2]
+    dux_dxdy = hessian[:,:,0,0,1]
+    dux_dxdz = hessian[:,:,0,0,2]
 
-    dux_dxd = torch.autograd.grad(outputs=dux_dx,inputs=X,grad_outputs=torch.ones_like(dux_dx),retain_graph=True,create_graph=True)[0]
-    dux_dyd = torch.autograd.grad(outputs=dux_dy,inputs=X,grad_outputs=torch.ones_like(dux_dy),retain_graph=True,create_graph=True)[0]
-    dux_dzd = torch.autograd.grad(outputs=dux_dz,inputs=X,grad_outputs=torch.ones_like(dux_dz),retain_graph=True,create_graph=True)[0]
+    duy_dxdx = hessian[:,:,1,0,0]
+    duy_dydy = hessian[:,:,1,1,1]
+    duy_dzdz = hessian[:,:,1,2,2]
+    duy_dydx = hessian[:,:,1,1,0]
+    duy_dydz = hessian[:,:,1,1,2]
 
-    ux_laplacian = dux_dxd[:,0] + dux_dyd[:,1] + dux_dzd[:,2]
-        
-    duy_dxd = torch.autograd.grad(outputs=duy_dx,inputs=X,grad_outputs=torch.ones_like(duy_dx),retain_graph=True,create_graph=True)[0]
-    duy_dyd = torch.autograd.grad(outputs=duy_dy,inputs=X,grad_outputs=torch.ones_like(duy_dy),retain_graph=True,create_graph=True)[0]
-    duy_dzd = torch.autograd.grad(outputs=duy_dz,inputs=X,grad_outputs=torch.ones_like(duy_dz),retain_graph=True,create_graph=True)[0]
+    duz_dxdx = hessian[:,:,2,0,0]
+    duz_dydy = hessian[:,:,2,1,1]
+    duz_dzdz = hessian[:,:,2,2,2]
+    duz_dzdx = hessian[:,:,2,2,0]
+    duz_dzdy = hessian[:,:,2,2,1]
 
-    uy_laplacian = duy_dxd[:,0] + duy_dyd[:,1] + duy_dzd[:,2]
-
-    duz_dxd = torch.autograd.grad(outputs=duz_dx,inputs=X,grad_outputs=torch.ones_like(duz_dx),retain_graph=True,create_graph=True)[0]
-    duz_dyd = torch.autograd.grad(outputs=duz_dy,inputs=X,grad_outputs=torch.ones_like(duz_dy),retain_graph=True,create_graph=True)[0]
-    duz_dzd = torch.autograd.grad(outputs=duz_dz,inputs=X,grad_outputs=torch.ones_like(duz_dz),retain_graph=True,create_graph=True)[0]
-
-    uz_laplacian = duz_dxd[:,0] + duz_dyd[:,1] + duz_dzd[:,2]
-
-    return (lam+mu)*du_div_d[:,0]+mu*ux_laplacian, (lam+mu)*du_div_d[:,1]+mu*uy_laplacian, (lam+mu)*du_div_d[:,2]+mu*uz_laplacian
+    return (lam+mu)*(dux_dxdx+duy_dydx+duz_dzdx)+mu*((dux_dxdx+dux_dydy+dux_dzdz)), \
+            (lam+mu)*(dux_dxdy+duy_dydy+duz_dzdy)+mu*((duy_dxdx+duy_dydy+duy_dzdz)), \
+            (lam+mu)*(dux_dxdz+duy_dydz+duz_dzdz)+mu*((duz_dxdx+duz_dydy+duz_dzdz))
 
 def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, scaler, device):
     loss_data_epoch = 0.0
@@ -51,21 +47,18 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, scaler, dev
         
 
         if is_PINN:
-            point_pinn = (60*torch.rand(50,3,device=device)-30).requires_grad_(True)        #random points at which derivates for Navier-Cauchy equation are obtained
+            point_pinn = (60*torch.rand(5,3,device=device)-30).requires_grad_(True)        #random points at which derivates for Navier-Cauchy equation are obtained
 
             is_inclusion = data.is_inclusion(point_pinn.detach().cpu().numpy()) #check which points are in inclusion and which in matrix
             lam = torch.where(is_inclusion == True, data.lambda_inclusion, data.lambda_matrix)
             mu = torch.where(is_inclusion == True, data.mu_inclusion, data.mu_matrix)
 
             lam = lam.to(device)
+            lam = lam.unsqueeze(-1).expand(-1,6)
             mu = mu.to(device)
+            mu = mu.unsqueeze(-1).expand(-1,6)
 
-            u_pinn = model(point_pinn)
-            u_pinn = u_pinn*scale_tensor + mean_tensor
-
-            u_pinn = u_pinn.view(50,6,3)
-
-            res_x, res_y, res_z = residual(u_pinn[:,:,0], u_pinn[:,:,1], u_pinn[:,:,2], point_pinn, lam, mu)
+            res_x, res_y, res_z = residual(model, point_pinn, scale_tensor, mean_tensor, lam, mu)
 
             loss_pinn = loss_fn(res_x,torch.zeros_like(res_x)) + loss_fn(res_y,torch.zeros_like(res_y)) + loss_fn(res_z,torch.zeros_like(res_z))
 
