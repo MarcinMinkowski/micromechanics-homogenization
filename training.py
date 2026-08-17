@@ -44,6 +44,17 @@ def residual(model, X, scale_tensor, mean_tensor, lam, mu):
 def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, scaler, device):
     loss_data_epoch = 0.0
     if is_PINN:
+        point_pinn = (60*torch.rand(1000,3,device=device)-30).requires_grad_(True)        #random points at which derivates for Navier-Cauchy equation are obtained
+
+        is_incl = is_inclusion(point_pinn) #check which points are in inclusion and which in matrix
+        lam = torch.where(is_incl == True, data.lambda_inclusion, data.lambda_matrix)
+        mu = torch.where(is_incl == True, data.mu_inclusion, data.mu_matrix)
+
+        lam = lam.to(device)
+        lam = lam.unsqueeze(-1).expand(-1,6)
+        mu = mu.to(device)
+        mu = mu.unsqueeze(-1).expand(-1,6)
+
         loss_pinn_epoch = 0.0
         scale_tensor = torch.tensor(scaler.scale_,device=device)
         mean_tensor = torch.tensor(scaler.mean_,device=device)
@@ -57,18 +68,7 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, scaler, dev
         loss_data = loss_fn(pred,u)
         
 
-        if is_PINN:
-            point_pinn = (60*torch.rand(1000,3,device=device)-30).requires_grad_(True)        #random points at which derivates for Navier-Cauchy equation are obtained
-
-            is_incl = is_inclusion(point_pinn) #check which points are in inclusion and which in matrix
-            lam = torch.where(is_incl == True, data.lambda_inclusion, data.lambda_matrix)
-            mu = torch.where(is_incl == True, data.mu_inclusion, data.mu_matrix)
-
-            lam = lam.to(device)
-            lam = lam.unsqueeze(-1).expand(-1,6)
-            mu = mu.to(device)
-            mu = mu.unsqueeze(-1).expand(-1,6)
-
+        if is_PINN: 
             res_x, res_y, res_z = residual(model, point_pinn, scale_tensor, mean_tensor, lam, mu)
 
             loss_pinn = loss_fn(res_x,torch.zeros_like(res_x)) + loss_fn(res_y,torch.zeros_like(res_y)) + loss_fn(res_z,torch.zeros_like(res_z))
