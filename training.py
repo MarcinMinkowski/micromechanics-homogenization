@@ -61,7 +61,7 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, scaler, dev
             point_pinn = (60*torch.rand(1000,3,device=device)-30).requires_grad_(True)        #random points at which derivates for Navier-Cauchy equation are obtained
 
             is_incl = is_inclusion(point_pinn) #check which points are in inclusion and which in matrix
-            lam = torch.where(is_incl == True, data.lambda_inclusion, data.lambda_matrix, device=device)
+            lam = torch.where(is_incl == True, data.lambda_inclusion, data.lambda_matrix)
             mu = torch.where(is_incl == True, data.mu_inclusion, data.mu_matrix)
 
             lam = lam.to(device)
