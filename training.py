@@ -1,6 +1,17 @@
 import torch
 from torch.func import jacrev, vmap
 
+def is_inclusion(pos):
+    x_min, x_max = -1.0, 1.0
+    y_min, y_max = -1.0, 1.0
+    z_min, z_max = -1.0, 1.0
+
+    inside_x = (pos[:,0] >= x_min) & (pos[:,0] <=x_max)
+    inside_y = (pos[:,0] >= y_min) & (pos[:,0] <=y_max)
+    inside_z = (pos[:,0] >= z_min) & (pos[:,0] <=z_max)
+
+    return inside_x & inside_y & inside_z
+
 def residual(model, X, scale_tensor, mean_tensor, lam, mu):
 
     def unscaled_output(X):
@@ -47,11 +58,11 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, scaler, dev
         
 
         if is_PINN:
-            point_pinn = (60*torch.rand(5,3,device=device)-30).requires_grad_(True)        #random points at which derivates for Navier-Cauchy equation are obtained
+            point_pinn = (60*torch.rand(1000,3,device=device)-30).requires_grad_(True)        #random points at which derivates for Navier-Cauchy equation are obtained
 
-            is_inclusion = data.is_inclusion(point_pinn.detach().cpu().numpy()) #check which points are in inclusion and which in matrix
-            lam = torch.where(is_inclusion == True, data.lambda_inclusion, data.lambda_matrix)
-            mu = torch.where(is_inclusion == True, data.mu_inclusion, data.mu_matrix)
+            is_incl = is_inclusion(point_pinn) #check which points are in inclusion and which in matrix
+            lam = torch.where(is_incl == True, data.lambda_inclusion, data.lambda_matrix, device=device)
+            mu = torch.where(is_incl == True, data.mu_inclusion, data.mu_matrix)
 
             lam = lam.to(device)
             lam = lam.unsqueeze(-1).expand(-1,6)
