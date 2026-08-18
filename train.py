@@ -56,11 +56,14 @@ if __name__ == "__main__":
     is_PINN = True
 
     curves_file = open("loss_curves.dat","w")
-    curves_file.write("#epoch loss_data loss_pinn\n")
+    if is_PINN:
+        curves_file.write("#epoch loss_data loss_pinn\n")
+    else:
+        curves_file.write("#epoch loss_data\n")
 
     for epoch in range(100):
         loss_epoch, loss_pinn = training.train_loop(train_dataset, model, train_dataloader, loss_fn, optimizer, is_PINN, scaler, device)
-        if loss_epoch:
+        if is_PINN:
             curves_file.write(str(epoch+1) + " " + str(loss_epoch) + " " + str(loss_pinn) + "\n")
         else:
             curves_file.write(str(epoch+1) + " " + str(loss_epoch) + "\n")
