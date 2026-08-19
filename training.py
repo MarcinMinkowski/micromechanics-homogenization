@@ -7,8 +7,8 @@ def is_inclusion(pos):
     z_min, z_max = -1.0, 1.0
 
     inside_x = (pos[:,0] >= x_min) & (pos[:,0] <=x_max)
-    inside_y = (pos[:,0] >= y_min) & (pos[:,0] <=y_max)
-    inside_z = (pos[:,0] >= z_min) & (pos[:,0] <=z_max)
+    inside_y = (pos[:,1] >= y_min) & (pos[:,1] <=y_max)
+    inside_z = (pos[:,2] >= z_min) & (pos[:,2] <=z_max)
 
     return inside_x & inside_y & inside_z
 
@@ -44,7 +44,7 @@ def residual(model, X, scale_tensor, mean_tensor, lam, mu):
 def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, scaler, device):
     loss_data_epoch = 0.0
     if is_PINN:
-        point_pinn = (60*torch.rand(1000,3,device=device)-30).requires_grad_(True)        #random points at which derivates for Navier-Cauchy equation are obtained
+        point_pinn = (60*torch.rand(1000,3,device=device)-30).requires_grad_(True)        #random points at which derivatives for Navier-Cauchy equation are obtained
 
         is_incl = is_inclusion(point_pinn) #check which points are in inclusion and which in matrix
         lam = torch.where(is_incl == True, data.lambda_inclusion, data.lambda_matrix)
