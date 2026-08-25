@@ -13,7 +13,7 @@ def is_inclusion(pos):
     return inside_x & inside_y & inside_z
 
 def random_points(n, dist, device):
-    points = torch.empty((0,3))
+    points = torch.empty((0,3),device=device)
 
     while len(points)<n:
         n_new_points = n - len(points)
