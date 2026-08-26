@@ -20,15 +20,15 @@ def random_points(n, dist, device):
 
         new_points = (60*torch.rand(1,3,device=device)-30)
 
-        matrix_x = (new_points[:,0] >= 1.0 + dist) or (new_points[:,0] <= -(1.0 + dist))
-        matrix_y = (new_points[:,1] >= 1.0 + dist) or (new_points[:,1] <= -(1.0 + dist))
-        matrix_z = (new_points[:,2] >= 1.0 + dist) or (new_points[:,2] <= -(1.0 + dist))
+        matrix_x = (new_points[:,0] >= 1.0 + dist) | (new_points[:,0] <= -(1.0 + dist))
+        matrix_y = (new_points[:,1] >= 1.0 + dist) | (new_points[:,1] <= -(1.0 + dist))
+        matrix_z = (new_points[:,2] >= 1.0 + dist) | (new_points[:,2] <= -(1.0 + dist))
 
-        matrix = matrix_x or matrix_y or matrix_z
+        matrix = matrix_x | matrix_y | matrix_z
 
-        inclusion_x = (new_points[:,0] <= 1.0 - dist) & (new_points[:,0] >= -(-1.0 + dist))
-        inclusion_y = (new_points[:,1] <= 1.0 - dist) & (new_points[:,1] >= -(-1.0 + dist))
-        inclusion_z = (new_points[:,2] <= 1.0 - dist) & (new_points[:,2] >= -(-1.0 + dist))
+        inclusion_x = (new_points[:,0] <= 1.0 - dist) & (new_points[:,0] >= -(1.0 - dist))
+        inclusion_y = (new_points[:,1] <= 1.0 - dist) & (new_points[:,1] >= -(1.0 - dist))
+        inclusion_z = (new_points[:,2] <= 1.0 - dist) & (new_points[:,2] >= -(1.0 - dist))
 
         inclusion = inclusion_x & inclusion_y & inclusion_z
 
@@ -50,24 +50,24 @@ def residual(model, X, scale_tensor, mean_tensor, lam, mu):
     dux_dxdx = hessian[:,:,0,0,0]
     dux_dydy = hessian[:,:,0,1,1]
     dux_dzdz = hessian[:,:,0,2,2]
-    dux_dxdy = hessian[:,:,0,0,1]
-    dux_dxdz = hessian[:,:,0,0,2]
+    dux_dydx = hessian[:,:,0,0,1]
+    dux_dzdx = hessian[:,:,0,0,2]
 
     duy_dxdx = hessian[:,:,1,0,0]
     duy_dydy = hessian[:,:,1,1,1]
     duy_dzdz = hessian[:,:,1,2,2]
-    duy_dydx = hessian[:,:,1,1,0]
-    duy_dydz = hessian[:,:,1,1,2]
+    duy_dxdy = hessian[:,:,1,1,0]
+    duy_dzdy = hessian[:,:,1,1,2]
 
     duz_dxdx = hessian[:,:,2,0,0]
     duz_dydy = hessian[:,:,2,1,1]
     duz_dzdz = hessian[:,:,2,2,2]
-    duz_dzdx = hessian[:,:,2,2,0]
-    duz_dzdy = hessian[:,:,2,2,1]
+    duz_dxdz = hessian[:,:,2,2,0]
+    duz_dydz = hessian[:,:,2,2,1]
 
-    return (lam+mu)*(dux_dxdx+duy_dydx+duz_dzdx)+mu*((dux_dxdx+dux_dydy+dux_dzdz)), \
-            (lam+mu)*(dux_dxdy+duy_dydy+duz_dzdy)+mu*((duy_dxdx+duy_dydy+duy_dzdz)), \
-            (lam+mu)*(dux_dxdz+duy_dydz+duz_dzdz)+mu*((duz_dxdx+duz_dydy+duz_dzdz))
+    return (lam+mu)*(dux_dxdx+duy_dxdy+duz_dxdz)+mu*(dux_dxdx+dux_dydy+dux_dzdz), \
+            (lam+mu)*(dux_dydx+duy_dydy+duz_dydz)+mu*(duy_dxdx+duy_dydy+duy_dzdz), \
+            (lam+mu)*(dux_dzdx+duy_dzdy+duz_dzdz)+mu*(duz_dxdx+duz_dydy+duz_dzdz)
 
 def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, scaler, device):
     loss_data_epoch = 0.0
