@@ -32,7 +32,7 @@ def random_points(n, dist, device):
 
         inclusion = inclusion_x & inclusion_y & inclusion_z
 
-        is_inside = matrix or inclusion
+        is_inside = matrix | inclusion
         
         new_points = new_points[is_inside]
 
