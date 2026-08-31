@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader, random_split
 from sklearn.preprocessing import StandardScaler
 from dataset import EshelbyDataset
 import csv
-from model import Net
+from model import Net, IPINN
 import training
 
 if __name__ == "__main__":
@@ -51,7 +51,7 @@ if __name__ == "__main__":
 
     loss_fn = nn.MSELoss()
 
-    optimizer = torch.optim.Adam(model.parameters(),lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(),lr=5e-3)
 
     is_PINN = True
 
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     else:
         curves_file.write("#epoch loss_data\n")
 
-    for epoch in range(100):
+    for epoch in range(1000):
         loss_epoch, loss_pinn = training.train_loop(train_dataset, model, train_dataloader, loss_fn, optimizer, is_PINN, scaler, device)
         if is_PINN:
             curves_file.write(str(epoch+1) + " " + str(loss_epoch) + " " + str(loss_pinn) + "\n")

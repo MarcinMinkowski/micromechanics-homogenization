@@ -6,9 +6,9 @@ def is_inclusion(pos):
     y_min, y_max = -1.0, 1.0
     z_min, z_max = -1.0, 1.0
 
-    inside_x = (pos[:,0] >= x_min) & (pos[:,0] <=x_max)
-    inside_y = (pos[:,1] >= y_min) & (pos[:,1] <=y_max)
-    inside_z = (pos[:,2] >= z_min) & (pos[:,2] <=z_max)
+    inside_x = (pos[...,0] >= x_min) & (pos[...,0] <=x_max)
+    inside_y = (pos[...,1] >= y_min) & (pos[...,1] <=y_max)
+    inside_z = (pos[...,2] >= z_min) & (pos[...,2] <=z_max)
 
     return inside_x & inside_y & inside_z
 
@@ -73,7 +73,8 @@ def train_loop(data, model, dataloader, loss_fn, optimizer, is_PINN, scaler, dev
     loss_data_epoch = 0.0
     if is_PINN:
         #point_pinn = (60*torch.rand(1000,3,device=device)-30).requires_grad_(True)        #random points at which derivatives for Navier-Cauchy equation are obtained
-        point_pinn = random_points(1000,0.1,device).requires_grad_(True)
+        #point_pinn = random_points(1000,0.1,device).requires_grad_(True)
+        point_pinn = random_points(1000,0.1,device)
 
         loss_pinn_epoch = 0.0
         scale_tensor = torch.tensor(scaler.scale_,device=device)
