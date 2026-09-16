@@ -34,6 +34,10 @@ if __name__ == "__main__":
     generator = torch.Generator().manual_seed(0)
     u_train, u_test = random_split(u,[0.8,0.2],generator=generator)
 
+    with open("trainingSetPoints.dat","w") as f:
+        for point in points_train:
+            f.write(str(point[0].item()) + " " + str(point[1].item()) + " " + str(point[2].item()) + "\n")
+
     scaler = StandardScaler()
     scaler.fit(u_train)
 

@@ -129,7 +129,7 @@ def test_loop(model, dataloader, loss_fn, scaler, device):
     loss = 0.0
     with torch.no_grad():
         f = open("pred.dat","w")
-        f.write("#u1x_true u1x_pred u1y_true u1y_pred u1z_true u1z_pred u2x_true u2x_pred u2y_true u2y_pred u2z_true u2z_pred u3x_true u3x_pred u3y_true u3y_pred u3z_true u3z_pred u4x_true u4x_pred u4y_true u4y_pred u4z_true u4z_pred u5x_true u5x_pred u5y_true u5y_pred u5z_true u5z_pred u6x_true u6x_pred u6y_true u6y_pred u6z_true u6z_pred\n")
+        f.write("#x y z u1x_true u1x_pred u1y_true u1y_pred u1z_true u1z_pred u2x_true u2x_pred u2y_true u2y_pred u2z_true u2z_pred u3x_true u3x_pred u3y_true u3y_pred u3z_true u3z_pred u4x_true u4x_pred u4y_true u4y_pred u4z_true u4z_pred u5x_true u5x_pred u5y_true u5y_pred u5z_true u5z_pred u6x_true u6x_pred u6y_true u6y_pred u6z_true u6z_pred\n")
         for (point, u) in dataloader:
             point = point.to(device)
 
@@ -140,7 +140,7 @@ def test_loop(model, dataloader, loss_fn, scaler, device):
 
             u = scaler.inverse_transform(u.cpu())
             pred = scaler.inverse_transform(pred.cpu())
-
+            f.write(str(point[0][0].item()) + " " + str(point[0][1].item()) + " " + str(point[0][2].item()) + " ")
             for i, value in enumerate(pred[0]):
                 f.write(str(u[0][i].item()) + " " + str(value.item()) + " ")
             f.write("\n")
