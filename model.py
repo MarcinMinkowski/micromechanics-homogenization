@@ -10,7 +10,7 @@ class Net(nn.Module):
         self.tanh1 = nn.Tanh()
         self.linear2 = nn.Linear(30,30)
         self.tanh2 = nn.Tanh()
-        self.linear3 = nn.Linear(30,18)
+        self.linear3 = nn.Linear(30,3)
 
     def forward(self, x):
         x = self.linear1(x)
@@ -31,16 +31,30 @@ class IPINN(nn.Module):
         self.linear2 = nn.Linear(30,30)
         self.tanh2 = nn.Tanh()
         self.silu2 = nn.SiLU()
-        self.linear3 = nn.Linear(30,18)
+        self.linear3 = nn.Linear(30,3)
+
+    def inclusion(self, x):
+        x = self.linear1(x)
+        x = self.tanh1(x)
+        x = self.linear2(x)
+        x = self.tanh2(x)
+        x = self.linear3(x)
+
+        return x
+
+    def matrix(self, x):
+        x = self.linear1(x)
+        x = self.silu1(x)
+        x = self.linear2(x)
+        x = self.silu2(x)
+        x = self.linear3(x)
+
+        return x
 
     def forward(self, x):
         is_incl = is_inclusion(x)
         is_incl = is_incl.unsqueeze(-1)
-            
-        x = self.linear1(x)
-        x = torch.where(is_incl == True, self.tanh1(x), self.silu1(x))
-        x = self.linear2(x)
-        x = torch.where(is_incl == True, self.tanh2(x), self.silu2(x))
-        x = self.linear3(x)
+
+        x = torch.where(is_incl == True, self.inclusion(x), self.matrix(x))
 
         return x

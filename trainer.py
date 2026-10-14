@@ -39,19 +39,19 @@ class Trainer:
         self.lambda_matrix = self.E_matrix*self.nu_matrix/((1-2*self.nu_matrix)*(1+self.nu_matrix))
         self.mu_matrix = self.E_matrix/(2*(1+self.nu_matrix))
 
-        u_1 = torch.tensor(self.mesh.point_data["u_1"],dtype=torch.float32)
-        u_2 = torch.tensor(self.mesh.point_data["u_2"],dtype=torch.float32)
-        u_3 = torch.tensor(self.mesh.point_data["u_3"],dtype=torch.float32)
-        u_4 = torch.tensor(self.mesh.point_data["u_4"],dtype=torch.float32)
-        u_5 = torch.tensor(self.mesh.point_data["u_5"],dtype=torch.float32)
-        u_6 = torch.tensor(self.mesh.point_data["u_6"],dtype=torch.float32)
+        self.u_1 = torch.tensor(self.mesh.point_data["u_1"],dtype=torch.float32)
+        #u_2 = torch.tensor(self.mesh.point_data["u_2"],dtype=torch.float32)
+        #u_3 = torch.tensor(self.mesh.point_data["u_3"],dtype=torch.float32)
+        #u_4 = torch.tensor(self.mesh.point_data["u_4"],dtype=torch.float32)
+        #u_5 = torch.tensor(self.mesh.point_data["u_5"],dtype=torch.float32)
+        #u_6 = torch.tensor(self.mesh.point_data["u_6"],dtype=torch.float32)
 
-        self.u = torch.cat([u_1,u_2,u_3,u_4,u_5,u_6],axis=-1)
+        #self.u = torch.cat([u_1,u_2,u_3,u_4,u_5,u_6],axis=-1)
 
         generator = torch.Generator().manual_seed(0)
         self.points_train, self.points_test = random_split(self.points,[1-self.test_set_ratio,self.test_set_ratio],generator=generator)
         generator = torch.Generator().manual_seed(0)
-        self.u_train, self.u_test = random_split(self.u,[1-self.test_set_ratio,self.test_set_ratio],generator=generator)
+        self.u_train, self.u_test = random_split(self.u_1,[1-self.test_set_ratio,self.test_set_ratio],generator=generator)
 
         self.scaler = StandardScaler()
         self.scaler.fit(self.u_train)
@@ -76,36 +76,36 @@ class Trainer:
 
     def residual(self, X):
         def unscaled_output(X):
-            return (self.model(X)*self.scale_tensor + self.mean_tensor).view(-1,6,3)
+            return (self.model(X)*self.scale_tensor + self.mean_tensor)
 
         is_incl = is_inclusion(X) #check which points are in inclusion and which in matrix
         lam = torch.where(is_incl == True, self.lambda_inclusion, self.lambda_matrix)
         mu = torch.where(is_incl == True, self.mu_inclusion, self.mu_matrix)
 
         lam = lam.to(self.device)
-        lam = lam.unsqueeze(-1).expand(-1,6)
+        #lam = lam.unsqueeze(-1).expand(-1,6)
         mu = mu.to(self.device)
-        mu = mu.unsqueeze(-1).expand(-1,6)
+        #mu = mu.unsqueeze(-1).expand(-1,6)
 
         hessian = vmap(jacrev(jacrev(unscaled_output)))(X).squeeze()
 
-        dux_dxdx = hessian[:,:,0,0,0]
-        dux_dydy = hessian[:,:,0,1,1]
-        dux_dzdz = hessian[:,:,0,2,2]
-        dux_dydx = hessian[:,:,0,0,1]
-        dux_dzdx = hessian[:,:,0,0,2]
+        dux_dxdx = hessian[:,0,0,0]
+        dux_dydy = hessian[:,0,1,1]
+        dux_dzdz = hessian[:,0,2,2]
+        dux_dydx = hessian[:,0,0,1]
+        dux_dzdx = hessian[:,0,0,2]
 
-        duy_dxdx = hessian[:,:,1,0,0]
-        duy_dydy = hessian[:,:,1,1,1]
-        duy_dzdz = hessian[:,:,1,2,2]
-        duy_dxdy = hessian[:,:,1,1,0]
-        duy_dzdy = hessian[:,:,1,1,2]
+        duy_dxdx = hessian[:,1,0,0]
+        duy_dydy = hessian[:,1,1,1]
+        duy_dzdz = hessian[:,1,2,2]
+        duy_dxdy = hessian[:,1,1,0]
+        duy_dzdy = hessian[:,1,1,2]
 
-        duz_dxdx = hessian[:,:,2,0,0]
-        duz_dydy = hessian[:,:,2,1,1]
-        duz_dzdz = hessian[:,:,2,2,2]
-        duz_dxdz = hessian[:,:,2,2,0]
-        duz_dydz = hessian[:,:,2,2,1]
+        duz_dxdx = hessian[:,2,0,0]
+        duz_dydy = hessian[:,2,1,1]
+        duz_dzdz = hessian[:,2,2,2]
+        duz_dxdz = hessian[:,2,2,0]
+        duz_dydz = hessian[:,2,2,1]
 
         return (lam+mu)*(dux_dxdx+duy_dxdy+duz_dxdz)+mu*(dux_dxdx+dux_dydy+dux_dzdz), \
                 (lam+mu)*(dux_dydx+duy_dydy+duz_dydz)+mu*(duy_dxdx+duy_dydy+duy_dzdz), \
@@ -170,7 +170,7 @@ class Trainer:
         loss = 0.0
         with torch.no_grad():
             f = open("pred.dat","w")
-            f.write("#x y z u1x_true u1x_pred u1y_true u1y_pred u1z_true u1z_pred u2x_true u2x_pred u2y_true u2y_pred u2z_true u2z_pred u3x_true u3x_pred u3y_true u3y_pred u3z_true u3z_pred u4x_true u4x_pred u4y_true u4y_pred u4z_true u4z_pred u5x_true u5x_pred u5y_true u5y_pred u5z_true u5z_pred u6x_true u6x_pred u6y_true u6y_pred u6z_true u6z_pred\n")
+            f.write("#x y z u1x_true u1x_pred u1y_true u1y_pred u1z_true u1z_pred\n")
             for (point, u) in self.test_dataloader:
                 point = point.to(self.device)
                 u = u.to(self.device)
