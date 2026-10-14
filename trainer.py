@@ -7,7 +7,7 @@ import pyvista as pv
 from sklearn.preprocessing import StandardScaler
 import csv
 import pickle
-from model import Net
+from model import Net, IPINN
 from dataset import EshelbyDataset
 
 class Trainer:
@@ -68,7 +68,7 @@ class Trainer:
         self.train_dataloader = DataLoader(dataset=self.train_dataset, shuffle=True, batch_size=100)
         self.test_dataloader = DataLoader(dataset=self.test_dataset, batch_size=100)
 
-        self.model = Net()
+        self.model = IPINN()
         self.model.to(self.device)
 
         self.loss_fn = nn.MSELoss()
@@ -111,12 +111,27 @@ class Trainer:
                 (lam+mu)*(dux_dydx+duy_dydy+duz_dydz)+mu*(duy_dxdx+duy_dydy+duy_dzdz), \
                 (lam+mu)*(dux_dzdx+duy_dzdy+duz_dzdz)+mu*(duz_dxdx+duz_dydy+duz_dzdz)
 
+    def interface_points(self, n_points, direction, value):
+        points = 2*torch.rand(15,3,device=self.device)-1.0
+        points[:,direction] = value
+        return points
+
     def train_update(self):
         loss_data_epoch = 0.0
         
         if self.is_PINN:
-            point_pinn = (60*torch.rand(1000,3,device=self.device)-30)
+            point_pinn = (60*torch.rand(1000,3,device=self.device)-30) #collocation points
+            
+            point_interface_xl = self.interface_points(100,0,-1)             #interface points
+            point_interface_xh = self.interface_points(100,0,1)
+            point_interface_yl = self.interface_points(100,1,-1)
+            point_interface_yh = self.interface_points(100,1,1)
+            point_interface_zl = self.interface_points(100,2,-1)
+            point_interface_zh = self.interface_points(100,2,1)
+            point_interface = torch.cat([point_interface_xl,point_interface_xh,point_interface_yl,point_interface_yh,point_interface_zl,point_interface_zh])
+            
             loss_pinn_epoch = 0.0
+            loss_interface_epoch = 0.0
     
         for (point,u) in self.train_dataloader:
             point = point.to(self.device)
@@ -126,9 +141,12 @@ class Trainer:
             loss_data = self.loss_fn(pred,u)
 
             if self.is_PINN:
-                res_x, res_y, res_z = self.residual(point_pinn)
+                res_x, res_y, res_z = self.residual(point_pinn) #residual
                 loss_pinn = self.loss_fn(res_x,torch.zeros_like(res_x)) + self.loss_fn(res_y,torch.zeros_like(res_y)) + self.loss_fn(res_z,torch.zeros_like(res_z))
-                loss = loss_data + loss_pinn
+
+                loss_interface = self.loss_fn(self.model.matrix(point_interface),self.model.inclusion(point_interface))
+                
+                loss = loss_data + loss_pinn + loss_interface
             else:
                 loss = loss_data
         
@@ -141,26 +159,28 @@ class Trainer:
             loss_data_epoch += loss_data.item()
             if self.is_PINN:
                 loss_pinn_epoch += loss_pinn.item()
+                loss_interface_epoch += loss_interface.item()
 
         loss_data_epoch /= len(self.train_dataloader)
         if self.is_PINN:
             loss_pinn_epoch /= len(self.train_dataloader)
+            loss_interface_epoch /= len(self.train_dataloader)
         else:
             loss_pinn_epoch = None
 
-        return loss_data_epoch, loss_pinn_epoch
+        return loss_data_epoch, loss_pinn_epoch, loss_interface_epoch
 
     def train_loop(self, N):
         curves_file = open("loss_curves.dat","w")
         if self.is_PINN:
-            curves_file.write("#epoch loss_data loss_pinn\n")
+            curves_file.write("#epoch loss_data loss_pinn loss_interface\n")
         else:
             curves_file.write("#epoch loss_data\n")
 
         for epoch in range(N):
-            loss_epoch, loss_pinn = self.train_update()
+            loss_epoch, loss_pinn, loss_interface = self.train_update()
             if self.is_PINN:
-                curves_file.write(str(epoch+1) + " " + str(loss_epoch) + " " + str(loss_pinn) + "\n")
+                curves_file.write(str(epoch+1) + " " + str(loss_epoch) + " " + str(loss_pinn) + " " + str(loss_interface) + "\n")
             else:
                 curves_file.write(str(epoch+1) + " " + str(loss_epoch) + "\n")
 
