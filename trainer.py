@@ -128,8 +128,11 @@ class Trainer:
         strain_inclusion = (jacobian_inclusion+jacobian_inclusion.mT)/2
         strain_matrix = (jacobian_matrix+jacobian_matrix.mT)/2
 
-        stress_inclusion = self.lambda_inclusion*torch.eye(3,device=self.device)*strain_inclusion+2*self.mu_inclusion*strain_inclusion
-        stress_matrix = self.lambda_matrix*torch.eye(3,device=self.device)*strain_matrix+2*self.mu_matrix*strain_matrix
+        strain_inclusion_trace = torch.diagonal(strain_inclusion,dim1=-2,dim2=-1).sum(1).unsqueeze(-1).unsqueeze(-1)
+        strain_matrix_trace = torch.diagonal(strain_matrix,dim1=-2,dim2=-1).sum(1).unsqueeze(-1).unsqueeze(-1)
+
+        stress_inclusion = self.lambda_inclusion*torch.eye(3,device=self.device)*strain_inclusion_trace+2*self.mu_inclusion*strain_inclusion
+        stress_matrix = self.lambda_matrix*torch.eye(3,device=self.device)*strain_matrix_trace+2*self.mu_matrix*strain_matrix
 
         return stress_inclusion, stress_matrix
 
