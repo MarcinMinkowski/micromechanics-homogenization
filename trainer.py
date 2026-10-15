@@ -128,8 +128,8 @@ class Trainer:
         strain_inclusion = (jacobian_inclusion+jacobian_inclusion.mT)/2
         strain_matrix = (jacobian_matrix+jacobian_matrix.mT)/2
 
-        stress_inclusion = self.lambda_inclusion*torch.eye(3)*strain_inclusion+2*self.mu_inclusion*strain_inclusion
-        stress_matrix = self.lambda_matrix*torch.eye(3)*strain_matrix+2*self.mu_matrix*strain_matrix
+        stress_inclusion = self.lambda_inclusion*torch.eye(3,device=self.device)*strain_inclusion+2*self.mu_inclusion*strain_inclusion
+        stress_matrix = self.lambda_matrix*torch.eye(3,device=self.device)*strain_matrix+2*self.mu_matrix*strain_matrix
 
         return stress_inclusion, stress_matrix
 
@@ -168,12 +168,12 @@ class Trainer:
                 stress_inclusion_y, stress_matrix_y = self.get_stress_tensor(torch.cat([point_interface_yl,point_interface_yh]))
                 stress_inclusion_z, stress_matrix_z = self.get_stress_tensor(torch.cat([point_interface_zl,point_interface_zh]))
 
-                traction_inclusion_x = torch.matmul(stress_inclusion_x,torch.tensor([1.0,0.0,0.0]))
-                traction_matrix_x = torch.matmul(stress_matrix_x,torch.tensor([1.0,0.0,0.0]))
-                traction_inclusion_y = torch.matmul(stress_inclusion_y,torch.tensor([0.0,1.0,0.0]))
-                traction_matrix_y = torch.matmul(stress_matrix_y,torch.tensor([0.0,1.0,0.0]))
-                traction_inclusion_z = torch.matmul(stress_inclusion_z,torch.tensor([0.0,0.0,1.0]))
-                traction_matrix_z = torch.matmul(stress_matrix_z,torch.tensor([0.0,0.0,1.0]))
+                traction_inclusion_x = torch.matmul(stress_inclusion_x,torch.tensor([1.0,0.0,0.0],device=self.device))
+                traction_matrix_x = torch.matmul(stress_matrix_x,torch.tensor([1.0,0.0,0.0],device=self.device))
+                traction_inclusion_y = torch.matmul(stress_inclusion_y,torch.tensor([0.0,1.0,0.0],device=self.device))
+                traction_matrix_y = torch.matmul(stress_matrix_y,torch.tensor([0.0,1.0,0.0],device=self.device))
+                traction_inclusion_z = torch.matmul(stress_inclusion_z,torch.tensor([0.0,0.0,1.0],device=self.device))
+                traction_matrix_z = torch.matmul(stress_matrix_z,torch.tensor([0.0,0.0,1.0],device=self.device))
 
                 loss_traction = (self.loss_fn(traction_inclusion_x,traction_matrix_x) + self.loss_fn(traction_inclusion_y,traction_matrix_y) + self.loss_fn(traction_inclusion_z,traction_matrix_z))/3
                 
@@ -211,7 +211,7 @@ class Trainer:
             curves_file.write("#epoch loss_data\n")
 
         for epoch in range(N):
-            loss_epoch, loss_pinn, loss_interface = self.train_update()
+            loss_epoch, loss_pinn, loss_interface, loss_traction = self.train_update()
             if self.is_PINN:
                 curves_file.write(str(epoch+1) + " " + str(loss_epoch) + " " + str(loss_pinn) + " " + str(loss_interface) + " " + str(loss_traction) + "\n")
             else:
