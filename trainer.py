@@ -9,15 +9,18 @@ import csv
 import pickle
 from model import Net, IPINN
 from dataset import EshelbyDataset
+import copy
 
 class Trainer:
     def __init__(self):
         self.simulation_file = "sim0001_alto.vtu"
         self.parameters_file = "parameter_overview.csv"
         
-        self.test_set_ratio = 0.2
-        self.is_PINN = True
+        self.val_set_ratio = 0.1          #validation to whole dataset ratio
+        self.test_set_ratio = 0.1         #test to whole dataset ratio
+        self.is_PINN = True               #is PINN used while training
         self.learning_rate = 5e-3
+        self.patience = 20
         
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -48,10 +51,18 @@ class Trainer:
 
         #self.u = torch.cat([u_1,u_2,u_3,u_4,u_5,u_6],axis=-1)
 
+        val_and_test_set_ratio = self.val_set_ratio + self.test_set_ratio                 #validation and test combined to whole dataset ratio
+        val_to_val_and_test_ratio = self.val_set_ratio / val_and_test_set_ratio           #validation to combined validation and test ratio
+        
+        generator = torch.Generator().manual_seed(0)                             #splitting dataset into training and (val+test) sets
+        self.points_train, self.points_val_and_test = random_split(self.points,[1-val_and_test_set_ratio,val_and_test_set_ratio],generator=generator)
         generator = torch.Generator().manual_seed(0)
-        self.points_train, self.points_test = random_split(self.points,[1-self.test_set_ratio,self.test_set_ratio],generator=generator)
+        self.u_train, self.u_val_and_test = random_split(self.u_1,[1-val_and_test_set_ratio,val_and_test_set_ratio],generator=generator)
+
+        generator = torch.Generator().manual_seed(0)                             #splitting (val+test) into val and test sets
+        self.points_val, self.points_test = random_split(self.points_val_and_test,[val_to_val_and_test_ratio,1-val_to_val_and_test_ratio],generator=generator)
         generator = torch.Generator().manual_seed(0)
-        self.u_train, self.u_test = random_split(self.u_1,[1-self.test_set_ratio,self.test_set_ratio],generator=generator)
+        self.u_val, self.u_test = random_split(self.u_val_and_test,[val_to_val_and_test_ratio,1-val_to_val_and_test_ratio],generator=generator)
 
         self.scaler = StandardScaler()
         self.scaler.fit(self.u_train)
@@ -60,12 +71,15 @@ class Trainer:
         self.mean_tensor = torch.tensor(self.scaler.mean_,device=self.device)
 
         self.u_train_scaled = self.scaler.transform(self.u_train).astype(np.float32)
+        self.u_val_scaled = self.scaler.transform(self.u_val).astype(np.float32)
         self.u_test_scaled = self.scaler.transform(self.u_test).astype(np.float32)
 
         self.train_dataset = EshelbyDataset(self.points_train,self.u_train_scaled)
+        self.val_dataset = EshelbyDataset(self.points_val,self.u_val_scaled)
         self.test_dataset = EshelbyDataset(self.points_test,self.u_test_scaled)
 
         self.train_dataloader = DataLoader(dataset=self.train_dataset, shuffle=True, batch_size=100)
+        self.val_dataloader = DataLoader(dataset=self.val_dataset, batch_size=100)
         self.test_dataloader = DataLoader(dataset=self.test_dataset, batch_size=100)
 
         self.model = IPINN()
@@ -203,24 +217,59 @@ class Trainer:
             loss_traction_epoch /= len(self.train_dataloader)
         else:
             loss_pinn_epoch = None
+            loss_interface_epoch = None
+            loss_traction_epoch = None
 
         return loss_data_epoch, loss_pinn_epoch, loss_interface_epoch, loss_traction_epoch
 
     def train_loop(self, N):
         curves_file = open("loss_curves.dat","w")
         if self.is_PINN:
-            curves_file.write("#epoch loss_data loss_pinn loss_interface loss_traction\n")
+            curves_file.write("#epoch loss_data loss_pinn loss_interface loss_traction val_loss_data\n")
         else:
-            curves_file.write("#epoch loss_data\n")
+            curves_file.write("#epoch loss_data val_loss_data\n")
+
+        best_val_loss = float('inf')
+        best_model_weights = None
 
         for epoch in range(N):
+            print(f"Epoch {epoch+1} / {N}")
+            print("----------------")
             loss_epoch, loss_pinn, loss_interface, loss_traction = self.train_update()
+            val_loss = self.val_loop()
+            print(f"Training data loss: {loss_epoch}")
+            print(f"Validation data loss: {val_loss}")
             if self.is_PINN:
-                curves_file.write(str(epoch+1) + " " + str(loss_epoch) + " " + str(loss_pinn) + " " + str(loss_interface) + " " + str(loss_traction) + "\n")
+                curves_file.write(str(epoch+1) + " " + str(loss_epoch) + " " + str(loss_pinn) + " " + str(loss_interface) + " " + str(loss_traction) + " " + str(val_loss) + "\n")
             else:
-                curves_file.write(str(epoch+1) + " " + str(loss_epoch) + "\n")
+                curves_file.write(str(epoch+1) + " " + str(loss_epoch) + " " + str(val_loss) + "\n")
+
+            if val_loss < best_val_loss:
+                patience_current = 0
+                best_val_loss = val_loss
+                best_model_weights = copy.deepcopy(self.model.state_dict())
+            else:
+                patience_current += 1
+                print(f"No validation loss improvement for {patience_current} / {self.patience} epoch(s)")
+                if patience_current == self.patience:
+                    print(f"Early stopping at epoch {epoch+1}")
+                    break
 
         curves_file.close()
+        self.model.load_state_dict(best_model_weights)
+
+    def val_loop(self):
+        loss = 0.0
+        with torch.no_grad():
+            for (point, u) in self.val_dataloader:
+                point = point.to(self.device)
+                u = u.to(self.device)
+
+                pred = self.model(point)
+                loss += self.loss_fn(pred,u).item()
+
+        loss /= len(self.val_dataloader)
+        return(loss)
 
     def test_loop(self):
         loss = 0.0
