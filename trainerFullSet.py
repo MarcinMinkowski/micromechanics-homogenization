@@ -96,9 +96,9 @@ class TrainerFullSet:
         self.val_dataset = EshelbyFullDataset(self.points,self.mat_params,self.indices_val,self.u_val_scaled)
         self.test_dataset = EshelbyFullDataset(self.points,self.mat_params,self.indices_test,self.u_test_scaled)
 
-        self.train_dataloader = DataLoader(dataset=self.train_dataset, shuffle=True, batch_size=100)
-        self.val_dataloader = DataLoader(dataset=self.val_dataset, batch_size=100)
-        self.test_dataloader = DataLoader(dataset=self.test_dataset, batch_size=100)
+        self.train_dataloader = DataLoader(dataset=self.train_dataset, shuffle=True, batch_size=10000)
+        self.val_dataloader = DataLoader(dataset=self.val_dataset, batch_size=10000)
+        self.test_dataloader = DataLoader(dataset=self.test_dataset, batch_size=10000)
 
         self.model = IPINN_material()
         self.model.to(self.device)
@@ -297,9 +297,8 @@ class TrainerFullSet:
 
     def test_loop(self):
         loss = 0.0
+        predictions = torch.empty(0,9)
         with torch.no_grad():
-            f = open("pred.dat","w")
-            f.write("#x y z u1x_true u1x_pred u1y_true u1y_pred u1z_true u1z_pred\n")
             for (point,mat_params,u) in self.test_dataloader:
                 point = point.to(self.device)
                 mat_params = mat_params.to(self.device)
@@ -313,13 +312,20 @@ class TrainerFullSet:
                 u = self.scaler.inverse_transform(u.cpu())
                 pred = self.scaler.inverse_transform(pred.cpu())
 
-                for i in range(len(point)):
-                    f.write(str(point[i][0].item()) + " " + str(point[i][1].item()) + " " + str(point[i][2].item()) + " ")
-                    for j, value in enumerate(pred[i]):
-                        f.write(str(u[i][j].item()) + " " + str(value.item()) + " ")
-                    f.write("\n")
-            f.close()
-        
+                predictions = torch.cat([predictions,torch.tensor(np.concatenate([point,u,pred],axis=1))])
+
+        data_to_file = {
+            "x": predictions[:,0],
+            "y": predictions[:,1],
+            "z": predictions[:,2],
+            "u1x_true": predictions[:,3],
+            "u1y_true": predictions[:,4],
+            "u1z_true": predictions[:,5],
+            "u1x_pred": predictions[:,6],
+            "u1y_pred": predictions[:,7],
+            "u1z_pred": predictions[:,8]
+        }
+        torch.save(data_to_file,"pred.pt")
         loss /= len(self.test_dataloader)
         return(loss)
 
