@@ -8,7 +8,7 @@ import h5py
 from sklearn.preprocessing import StandardScaler
 import csv
 import pickle
-from model import Net, IPINN, IPINN_material
+from model import Net, IPINN, IPINN_material, MPINN_material
 from dataset import EshelbyFullDataset
 import copy
 import os
@@ -19,9 +19,9 @@ class TrainerFullSet:
         self.samples_dir = "samples"
         self.disp_file = "displacement.h5"
         
-        self.val_set_ratio = 0.1          #validation to whole dataset ratio
-        self.test_set_ratio = 0.1         #test to whole dataset ratio
-        self.is_PINN = False              #is PINN used while training
+        self.val_set_ratio = 0.4          #validation to whole dataset ratio
+        self.test_set_ratio = 0.4         #test to whole dataset ratio
+        self.is_PINN = True               #is PINN used while training
         self.learning_rate = 5e-3
         self.patience = 20
         
@@ -33,11 +33,10 @@ class TrainerFullSet:
         self.points = self.mesh.points                                #tensor with all points in the mesh
 
         point_index = torch.arange(len(self.points)).unsqueeze(1)     #tensor with indices for points in the mesh (same for each sample)
-        #list_dir = os.listdir(self.samples_dir)                       #list of directories with samples
-        list_dir = ["sid=00000","sid=00001"]
+        list_dir = os.listdir(self.samples_dir)                       #list of directories with samples
+        #list_dir = ["sid=00000","sid=00001"]
         n_samples = len(list_dir)                                     #number of samples
         
-        #self.u_all = torch.empty(0,5)                                 #tensor with u coordinates + point index + sample index
         self.u_all = torch.empty(0,3)                                 #tensor with u coordinates
         self.indices_all = torch.empty(0,2)                           #tensor with point and sample indices
         self.mat_params = torch.empty(n_samples,4)                    #tensor with material parameters for each sample
@@ -110,9 +109,11 @@ class TrainerFullSet:
         def unscaled_output(X):
             return (self.model(X)*self.scale_tensor + self.mean_tensor)
 
-        is_incl = is_inclusion(X) #check which points are in inclusion and which in matrix
-        lam = torch.where(is_incl == True, self.lambda_inclusion, self.lambda_matrix)
-        mu = torch.where(is_incl == True, self.mu_inclusion, self.mu_matrix)
+        pos = X[:,:3]
+        is_incl = is_inclusion(pos) #check which points are in inclusion and which in matrix
+
+        lam = torch.where(is_incl == True, X[:,3], X[:,5])
+        mu = torch.where(is_incl == True, X[:,4], X[:,6])
 
         lam = lam.to(self.device)
         #lam = lam.unsqueeze(-1).expand(-1,6)
@@ -143,10 +144,16 @@ class TrainerFullSet:
                 (lam+mu)*(dux_dydx+duy_dydy+duz_dydz)+mu*(duy_dxdx+duy_dydy+duy_dzdz), \
                 (lam+mu)*(dux_dzdx+duy_dzdy+duz_dzdz)+mu*(duz_dxdx+duz_dydy+duz_dzdz)
 
+    def collocation_points(self, n_points):
+        points_pinn = 62*torch.rand(n_points,3,device=self.device)-31
+        mat_params_pinn = 100*torch.rand(n_points,4,device=self.device)
+        return torch.cat([points_pinn,mat_params_pinn],1)
+
     def interface_points(self, n_points, direction, value):
         points = 2*torch.rand(n_points,3,device=self.device)-1.0
         points[:,direction] = value
-        return points
+        mat_params_pinn = 100*torch.rand(n_points,4,device=self.device)
+        return torch.cat([points,mat_params_pinn],1)
 
     def get_stress_tensor(self, X):
         def unscaled_inclusion_output(X):
@@ -154,8 +161,16 @@ class TrainerFullSet:
         def unscaled_matrix_output(X):
             return (self.model.matrix(X)*self.scale_tensor + self.mean_tensor)
         
+        lambda_inclusion = X[:,3:4].unsqueeze(-1).unsqueeze(-1)
+        mu_inclusion = X[:,4:5].unsqueeze(-1).unsqueeze(-1)
+        lambda_matrix = X[:,5:6].unsqueeze(-1).unsqueeze(-1)
+        mu_matrix = X[:,6:7].unsqueeze(-1).unsqueeze(-1)
+        
         jacobian_inclusion = vmap(jacrev(unscaled_inclusion_output))(X)
         jacobian_matrix = vmap(jacrev(unscaled_matrix_output))(X)
+
+        jacobian_inclusion = jacobian_inclusion[:,:,:3]
+        jacobian_matrix = jacobian_matrix[:,:,:3]
 
         strain_inclusion = (jacobian_inclusion+jacobian_inclusion.mT)/2
         strain_matrix = (jacobian_matrix+jacobian_matrix.mT)/2
@@ -163,8 +178,8 @@ class TrainerFullSet:
         strain_inclusion_trace = torch.diagonal(strain_inclusion,dim1=-2,dim2=-1).sum(1).unsqueeze(-1).unsqueeze(-1)
         strain_matrix_trace = torch.diagonal(strain_matrix,dim1=-2,dim2=-1).sum(1).unsqueeze(-1).unsqueeze(-1)
 
-        stress_inclusion = self.lambda_inclusion*torch.eye(3,device=self.device)*strain_inclusion_trace+2*self.mu_inclusion*strain_inclusion
-        stress_matrix = self.lambda_matrix*torch.eye(3,device=self.device)*strain_matrix_trace+2*self.mu_matrix*strain_matrix
+        stress_inclusion = lambda_inclusion*(torch.eye(3,device=self.device).repeat(len(X),1,1))*strain_inclusion_trace+2*mu_inclusion*strain_inclusion
+        stress_matrix = lambda_matrix*torch.eye(3,device=self.device)*strain_matrix_trace+2*mu_matrix*strain_matrix
 
         return stress_inclusion, stress_matrix
 
@@ -172,15 +187,15 @@ class TrainerFullSet:
         loss_data_epoch = 0.0
         
         if self.is_PINN:
-            point_pinn = (60*torch.rand(1000,3,device=self.device)-30) #collocation points
+            collocation_points = self.collocation_points(50) #collocation points
             
-            point_interface_xl = self.interface_points(100,0,-1)             #interface points
-            point_interface_xh = self.interface_points(100,0,1)
-            point_interface_yl = self.interface_points(100,1,-1)
-            point_interface_yh = self.interface_points(100,1,1)
-            point_interface_zl = self.interface_points(100,2,-1)
-            point_interface_zh = self.interface_points(100,2,1)
-            point_interface = torch.cat([point_interface_xl,point_interface_xh,point_interface_yl,point_interface_yh,point_interface_zl,point_interface_zh])
+            points_interface_xl = self.interface_points(100,0,-1)             #interface points
+            points_interface_xh = self.interface_points(100,0,1)
+            points_interface_yl = self.interface_points(100,1,-1)
+            points_interface_yh = self.interface_points(100,1,1)
+            points_interface_zl = self.interface_points(100,2,-1)
+            points_interface_zh = self.interface_points(100,2,1)
+            points_interface = torch.cat([points_interface_xl,points_interface_xh,points_interface_yl,points_interface_yh,points_interface_zl,points_interface_zh])
             
             loss_pinn_epoch = 0.0
             loss_interface_epoch = 0.0
@@ -197,14 +212,14 @@ class TrainerFullSet:
             loss_data = self.loss_fn(pred,u)
 
             if self.is_PINN:
-                res_x, res_y, res_z = self.residual(point_pinn) #residual
+                res_x, res_y, res_z = self.residual(collocation_points) #residual
                 loss_pinn = self.loss_fn(res_x,torch.zeros_like(res_x)) + self.loss_fn(res_y,torch.zeros_like(res_y)) + self.loss_fn(res_z,torch.zeros_like(res_z))
 
-                loss_interface = self.loss_fn(self.model.matrix(point_interface),self.model.inclusion(point_interface))
+                loss_interface = self.loss_fn(self.model.matrix(points_interface),self.model.inclusion(points_interface))
 
-                stress_inclusion_x, stress_matrix_x = self.get_stress_tensor(torch.cat([point_interface_xl,point_interface_xh]))
-                stress_inclusion_y, stress_matrix_y = self.get_stress_tensor(torch.cat([point_interface_yl,point_interface_yh]))
-                stress_inclusion_z, stress_matrix_z = self.get_stress_tensor(torch.cat([point_interface_zl,point_interface_zh]))
+                stress_inclusion_x, stress_matrix_x = self.get_stress_tensor(torch.cat([points_interface_xl,points_interface_xh]))
+                stress_inclusion_y, stress_matrix_y = self.get_stress_tensor(torch.cat([points_interface_yl,points_interface_yh]))
+                stress_inclusion_z, stress_matrix_z = self.get_stress_tensor(torch.cat([points_interface_zl,points_interface_zh]))
 
                 traction_inclusion_x = torch.matmul(stress_inclusion_x,torch.tensor([1.0,0.0,0.0],device=self.device))
                 traction_matrix_x = torch.matmul(stress_matrix_x,torch.tensor([1.0,0.0,0.0],device=self.device))
@@ -213,7 +228,7 @@ class TrainerFullSet:
                 traction_inclusion_z = torch.matmul(stress_inclusion_z,torch.tensor([0.0,0.0,1.0],device=self.device))
                 traction_matrix_z = torch.matmul(stress_matrix_z,torch.tensor([0.0,0.0,1.0],device=self.device))
 
-                loss_traction = (self.loss_fn(traction_inclusion_x,traction_matrix_x) + self.loss_fn(traction_inclusion_y,traction_matrix_y) + self.loss_fn(traction_inclusion_z,traction_matrix_z))/3
+                loss_traction = self.loss_fn(traction_inclusion_x,traction_matrix_x) + self.loss_fn(traction_inclusion_y,traction_matrix_y) + self.loss_fn(traction_inclusion_z,traction_matrix_z)
                 
                 loss = loss_data + loss_pinn + loss_interface + loss_traction
             else:
@@ -259,6 +274,10 @@ class TrainerFullSet:
             loss_epoch, loss_pinn, loss_interface, loss_traction = self.train_update()
             val_loss = self.val_loop()
             print(f"Training data loss: {loss_epoch}")
+            if self.is_PINN:
+                print(f"PINN loss: {loss_pinn}")
+                print(f"Interface loss: {loss_interface}")
+                print(f"Traction loss: {loss_traction}")
             print(f"Validation data loss: {val_loss}")
             if self.is_PINN:
                 curves_file.write(str(epoch+1) + " " + str(loss_epoch) + " " + str(loss_pinn) + " " + str(loss_interface) + " " + str(loss_traction) + " " + str(val_loss) + "\n")
