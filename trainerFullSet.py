@@ -331,7 +331,7 @@ class TrainerFullSet:
                 u = self.scaler.inverse_transform(u.cpu())
                 pred = self.scaler.inverse_transform(pred.cpu())
 
-                predictions = torch.cat([predictions,torch.tensor(np.concatenate([point,u,pred],axis=1))])
+                predictions = torch.cat([predictions,torch.tensor(np.concatenate([point.cpu(),u,pred],axis=1))])
 
         data_to_file = {
             "x": predictions[:,0],
