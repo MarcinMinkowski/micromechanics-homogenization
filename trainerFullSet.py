@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from torch.func import jacrev, vmap
+from torch.func import jacrev, vmap, functional_call
 from torch.utils.data import random_split, DataLoader
 import numpy as np
 import pyvista as pv
@@ -106,8 +106,8 @@ class TrainerFullSet:
         self.optimizer = torch.optim.Adam(self.model.parameters(),lr=self.learning_rate)
 
     def residual(self, X):
-        def unscaled_output(X):
-            return (self.model(X)*self.scale_tensor + self.mean_tensor)
+        def unscaled_output(params, X):
+            return functional_call(self.model,(params),(X))*self.scale_tensor + self.mean_tensor
 
         pos = X[:,:3]
         is_incl = is_inclusion(pos) #check which points are in inclusion and which in matrix
@@ -120,7 +120,16 @@ class TrainerFullSet:
         mu = mu.to(self.device)
         #mu = mu.unsqueeze(-1).expand(-1,6)
 
-        hessian = vmap(jacrev(jacrev(unscaled_output)))(X).squeeze()
+        jac_single = jacrev(unscaled_output,argnums=1)
+        hess_single = jacrev(jac_single,argnums=1)
+
+        compute_hessian_batch = vmap(hess_single, in_dims=(None,0))
+
+        params = dict(self.model.named_parameters())
+
+        hessian = compute_hessian_batch(params,X)
+        
+        #hessian = vmap(jacrev(jacrev(unscaled_output)))(X).squeeze()
 
         dux_dxdx = hessian[:,0,0,0]
         dux_dydy = hessian[:,0,1,1]
