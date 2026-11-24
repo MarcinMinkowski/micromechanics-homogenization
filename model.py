@@ -51,11 +51,15 @@ class IPINN(nn.Module):
 
         return x
 
-    def forward(self, x):
-        is_incl = is_inclusion(x)
-        is_incl = is_incl.unsqueeze(-1)
-
-        x = torch.where(is_incl == True, self.inclusion(x), self.matrix(x))
+    def forward(self, x, region = None):
+        if region == "inclusion":
+            x = self.inclusion(x)
+        elif region == "matrix":
+            x = self.matrix(x)
+        else:
+            is_incl = is_inclusion(x)
+            is_incl = is_incl.unsqueeze(-1)
+            x = torch.where(is_incl == True, self.inclusion(x), self.matrix(x))
 
         return x
 
@@ -89,11 +93,15 @@ class IPINN_material(nn.Module):
 
         return x
 
-    def forward(self, x):
-        is_incl = is_inclusion(x)
-        is_incl = is_incl.unsqueeze(-1)
-
-        x = torch.where(is_incl == True, self.inclusion(x), self.matrix(x))
+    def forward(self, x, region = None):
+        if region == "inclusion":
+            x = self.inclusion(x)
+        elif region == "matrix":
+            x = self.matrix(x)
+        else:
+            is_incl = is_inclusion(x)
+            is_incl = is_incl.unsqueeze(-1)
+            x = torch.where(is_incl == True, self.inclusion(x), self.matrix(x))
 
         return x
 

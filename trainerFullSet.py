@@ -33,8 +33,8 @@ class TrainerFullSet:
         self.points = self.mesh.points                                #tensor with all points in the mesh
 
         point_index = torch.arange(len(self.points)).unsqueeze(1)     #tensor with indices for points in the mesh (same for each sample)
-        list_dir = os.listdir(self.samples_dir)                       #list of directories with samples
-        #list_dir = ["sid=00000","sid=00001"]
+        #list_dir = os.listdir(self.samples_dir)                       #list of directories with samples
+        list_dir = ["sid=00000","sid=00001"]
         n_samples = len(list_dir)                                     #number of samples
         
         self.u_all = torch.empty(0,3)                                 #tensor with u coordinates
@@ -106,7 +106,7 @@ class TrainerFullSet:
         self.optimizer = torch.optim.Adam(self.model.parameters(),lr=self.learning_rate)
 
     def residual(self, X):
-        def unscaled_output(params, X):
+        def unscaled_output(params,X):
             return functional_call(self.model,(params),(X))*self.scale_tensor + self.mean_tensor
 
         pos = X[:,:3]
@@ -169,14 +169,25 @@ class TrainerFullSet:
             return (self.model.inclusion(X)*self.scale_tensor + self.mean_tensor)
         def unscaled_matrix_output(X):
             return (self.model.matrix(X)*self.scale_tensor + self.mean_tensor)
+        def unscaled_output(params,X,region):
+            return functional_call(self.model,(params),(X),kwargs=region)*self.scale_tensor + self.mean_tensor
         
         lambda_inclusion = X[:,3:4].unsqueeze(-1).unsqueeze(-1)
         mu_inclusion = X[:,4:5].unsqueeze(-1).unsqueeze(-1)
         lambda_matrix = X[:,5:6].unsqueeze(-1).unsqueeze(-1)
         mu_matrix = X[:,6:7].unsqueeze(-1).unsqueeze(-1)
+
+        jac_single = jacrev(unscaled_output,argnums=1)
+
+        compute_jacobian_batch = vmap(jac_single, in_dims=(None,0,None))
+
+        params = dict(self.model.named_parameters())
         
-        jacobian_inclusion = vmap(jacrev(unscaled_inclusion_output))(X)
-        jacobian_matrix = vmap(jacrev(unscaled_matrix_output))(X)
+        #jacobian_inclusion = vmap(jacrev(unscaled_inclusion_output))(X)
+        #jacobian_matrix = vmap(jacrev(unscaled_matrix_output))(X)
+
+        jacobian_inclusion = compute_jacobian_batch(params, X, {'region' : 'inclusion'})
+        jacobian_matrix = compute_jacobian_batch(params, X, {'region' : 'matrix'})
 
         jacobian_inclusion = jacobian_inclusion[:,:,:3]
         jacobian_matrix = jacobian_matrix[:,:,:3]
@@ -224,7 +235,7 @@ class TrainerFullSet:
                 res_x, res_y, res_z = self.residual(collocation_points) #residual
                 loss_pinn = self.loss_fn(res_x,torch.zeros_like(res_x)) + self.loss_fn(res_y,torch.zeros_like(res_y)) + self.loss_fn(res_z,torch.zeros_like(res_z))
 
-                loss_interface = self.loss_fn(self.model.matrix(points_interface),self.model.inclusion(points_interface))
+                loss_interface = self.loss_fn(self.model(points_interface,"matrix"),self.model(points_interface,"inclusion"))
 
                 stress_inclusion_x, stress_matrix_x = self.get_stress_tensor(torch.cat([points_interface_xl,points_interface_xh]))
                 stress_inclusion_y, stress_matrix_y = self.get_stress_tensor(torch.cat([points_interface_yl,points_interface_yh]))
